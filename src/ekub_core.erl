@@ -1,8 +1,6 @@
 -module(ekub_core).
 
 -export([
-    request/1,
-
     http_request/2, http_request/3,
     http_request/6, http_request/7,
 

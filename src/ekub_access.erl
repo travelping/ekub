@@ -1,7 +1,7 @@
 -module(ekub_access).
 
 -export([
-    read/1
+    read/0, read/1
 ]).
 
 -type options() :: #{
@@ -38,9 +38,6 @@
 
 -type access_value() :: term().
 
--type option_errors() ::
-    #{OptionName :: atom() => Reason :: term()}.
-
 -type base64() :: [1..255] | binary().
 
 -define(Config, ekub_config).
@@ -62,20 +59,26 @@
     server
 ]).
 
--spec read(Options :: options()) -> Result :: {access(), option_errors()}.
-read(Options) ->
-    lists:foldl(fun(OptionName, Result) ->
-        case maps:find(OptionName, Options) of
-            {ok, OptionValue} -> read_option(OptionName, OptionValue, Result);
-            error -> Result
-        end
-    end, {#{}, #{}}, ?OptionsOrder).
+-spec read(Options :: options()) ->
+    Result :: {ok, access()} |
+              {error, {OptionName :: term(), Reason :: term()}}.
 
-read_option(OptionName, OptionValue, {Access, Errors}) ->
-    case read_option(OptionName, OptionValue) of
-        {ok, OptionResult} -> {maps:merge(Access, OptionResult), Errors};
-        {error, Reason} -> {Access, maps:put(OptionName, Reason, Errors)}
-    end.
+read() -> read(#{}).
+
+read(Options) when map_size(Options) == 0 ->
+    read(#{kubeconfig => ?Config:filename()});
+
+read(Options) ->
+    OrderedOptions = [{Name, Value} || Name <- ?OptionsOrder,
+                      {ok, Value} <- [maps:find(Name, Options)]],
+    lists:foldl(fun read_option/2, {ok, #{}}, OrderedOptions).
+
+read_option({Name, Value}, {ok, Access}) ->
+    case read_option(Name, Value) of
+        {ok, Result} -> {ok, maps:merge(Access, Result)};
+        {error, Reason} -> {error, {Name, Reason}}
+    end;
+read_option({_Name, _Value}, {error, Reason}) -> {error, Reason};
 
 read_option(kubeconfig, FileName) ->
     case ?Config:read(FileName) of
@@ -89,7 +92,7 @@ read_option(Name, Value) when
     Name == client_key_file
 ->
     case decode_cert_file(Value) of
-        {ok, Result} -> {ok, #{option_name_unfile(Name) => Result}};
+        {ok, Result} -> {ok, #{trim_suffix(Name) => Result}};
         {error, Reason} -> {error, Reason}
     end;
 
@@ -108,10 +111,8 @@ read_option(Name, Value) when
     Name == token_file
 ->
     case file:read_file(Value) of
-        {ok, Binary} ->
-            {ok, #{option_name_unfile(Name) => binary_to_list(Binary)}};
-        {error, Reason} ->
-            {error, Reason}
+        {ok, Binary} -> {ok, #{trim_suffix(Name) => binary_to_list(Binary)}};
+        {error, Reason} -> {error, Reason}
     end;
 
 read_option(Name, Value) -> {ok, #{Name => Value}}.
@@ -147,7 +148,9 @@ complete_kubeconfig(Name, Value, {ok, Config}) ->
         "client-certificate" -> {client_cert, decode_cert_file(Value)};
         "client-key" -> {client_key, decode_cert_file(Value)};
         Name -> {name_to_atom(Name), {ok, Value}}
-    end, {ok, Config}).
+    end, {ok, Config});
+
+complete_kubeconfig(_Name, _Value, {error, Reason}) -> {error, Reason}.
 
 complete_kubeconfig({Name, {ok, Value}}, {ok, Config}) ->
     {ok, maps:put(Name, Value, Config)};
@@ -182,6 +185,6 @@ decode_cert(Value) ->
 name_to_atom(Name) ->
     list_to_atom(lists:flatten(string:replace(Name, "-", "_", all))).
 
-option_name_unfile(Name) ->
+trim_suffix(Name) ->
     "elif_" ++ NewName = lists:reverse(atom_to_list(Name)),
     list_to_atom(lists:reverse(NewName)).
