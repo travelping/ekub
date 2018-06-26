@@ -1,0 +1,7 @@
+{application, ekub, [
+    {description, "Kubernetes client library"},
+    {id, "ekub"},
+    {vsn, "0.1.0"},
+    {modules, []},
+    {applications, [kernel, stdlib, jsx, yamerl, ewsc, hackney]}
+]}.
