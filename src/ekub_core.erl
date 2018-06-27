@@ -10,9 +10,13 @@
     http_body_read/1,
     http_stream_read/1,
 
-    ws_connect/2, ws_connect/4, ws_connect/5,
+    ws_request/2, ws_request/3, ws_request/4, ws_request/5,
+
+    ws_connect/2, ws_connect/3, ws_connect/4, ws_connect/5,
     ws_close/1,
-    ws_recv/1
+
+    ws_recv/1,
+    ws_recv_close/1
 ]).
 
 -define(JsonDecodeOptions, [return_maps, {labels, atom}]).
@@ -106,8 +110,26 @@ http_stream_to_json(Ref, Data, DecodeFun) ->
             http_stream_read(Ref, NewDecodeFun)
     end.
 
+ws_request(Resource, Access) ->
+    ws_request(Resource, [], [], [], Access).
+
+ws_request(Resource, Query, Access) ->
+    ws_request(Resource, Query, [], [], Access).
+
+ws_request(Resource, Query, Headers, Options, Access) ->
+    ws_request(url(Resource, Query, Access), Headers, Options, Access).
+
+ws_request(Url, Headers, Options, Access) ->
+    case ws_connect(Url, Headers, Options, Access) of
+        {ok, Socket} -> ws_recv_close(Socket);
+        {error, Reason} -> {error, Reason}
+    end.
+
 ws_connect(Resource, Access) ->
     ws_connect(Resource, [], [], [], Access).
+
+ws_connect(Resource, Query, Access) ->
+    ws_connect(Resource, Query, [], [], Access).
 
 ws_connect(Resource, Query, Headers, Options, Access) ->
     ws_connect(url(Resource, Query, Access), Headers, Options, Access).
@@ -128,6 +150,11 @@ ws_recv(Socket, Acc) ->
         {error, Reason} ->
             {error, Reason}
     end.
+
+ws_recv_close(Socket) ->
+    Result = ws_recv(Socket),
+    ws_close(Socket),
+    Result.
 
 ws_append_messages(Messages, []) -> Messages;
 ws_append_messages(Messages, NewMessages) ->
