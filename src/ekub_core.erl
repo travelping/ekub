@@ -135,7 +135,12 @@ ws_connect(Resource, Query, Headers, Options, Access) ->
     ws_connect(url(Resource, Query, Access), Headers, Options, Access).
 
 ws_connect(Url, Headers, Options, Access) ->
-    ewsc:connect(Url, headers(Headers, Access), ws_options(Options, Access)).
+    case ewsc:connect(Url, headers(Headers, Access),
+                           ws_options(Options, Access))
+    of
+        {ok, Result} -> {ok, Result};
+        {error, Reason} -> {error, ws_read_error(Reason)}
+    end.
 
 ws_close(Socket) -> ewsc:close(Socket).
 
@@ -148,7 +153,7 @@ ws_recv(Socket, Acc) ->
         {ok, Messages} ->
             ws_recv(Socket, ws_append_messages(Acc, Messages));
         {error, Reason} ->
-            {error, Reason}
+            {error, ws_read_error(Reason)}
     end.
 
 ws_recv_close(Socket) ->
@@ -160,6 +165,13 @@ ws_append_messages(Messages, []) -> Messages;
 ws_append_messages(Messages, NewMessages) ->
     NewMessagesStripped = [M || <<_, M/binary>> <- NewMessages],
     <<Messages/binary, (iolist_to_binary(NewMessagesStripped))/binary>>.
+
+ws_read_error({http_message, response, StatusLine, Headers, Body}) ->
+    IsJson = is_json(Headers),
+    if IsJson -> jsx:decode(Body, ?JsonDecodeOptions);
+    not IsJson -> {StatusLine, Headers, Body} end;
+
+ws_read_error(Error) -> Error.
 
 url(Resource, Query, Access) ->
     maps:get(server, Access, "") ++ Resource ++ url_query(Query).
@@ -178,6 +190,10 @@ authorization(#{token := Token}) -> "Bearer " ++ Token;
 authorization(#{username := UserName, password := Password}) ->
     base64:encode(UserName ++ [$:|Password]);
 authorization(_Access) -> "".
+
+is_json(Headers) ->
+    {"Content-Type", "application/json"} ==
+        lists:keyfind("Content-Type", 1, Headers).
 
 http_options(Options, Access) -> [
     {ssl_options, ssl_options(Access)},
