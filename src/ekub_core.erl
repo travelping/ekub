@@ -7,7 +7,7 @@
     http_stream_request/2, http_stream_request/3,
     http_stream_request/6, http_stream_request/7,
 
-    http_body_read/1,
+    http_body_read/2,
     http_stream_read/1,
 
     ws_request/2, ws_request/3, ws_request/4, ws_request/5,
@@ -42,8 +42,10 @@ http_request(Method, Resource, Query, Headers, Body, Options, Access) ->
 
 http_request(Method, Url, Headers, Body, Options, Access) ->
     case http_request_ref(Method, Url, Headers, Body, Options, Access) of
-        {ok, {_Code, _ResponseHeaders, Ref}} -> http_body_read(Ref);
-        {error, Reason} -> {error, Reason}
+        {ok, {_Code, ResponseHeaders, Ref}} ->
+            http_body_read(ResponseHeaders, Ref);
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 http_stream_request(Resource, Access) ->
@@ -69,15 +71,28 @@ http_request_ref(Method, Url, Headers, Body, Options, Access) ->
     ) of
         {ok, Code, ResponseHeaders, Ref} when Code >= 200, Code =< 299 ->
             {ok, {Code, ResponseHeaders, Ref}};
-        {ok, Code, ResponseHeaders, Ref} ->
-            {ok, ResponseBody} = hackney:body(Ref),
-            {error, {Code, ResponseHeaders, ResponseBody}};
+        {ok, _Code, ResponseHeaders, Ref} ->
+            case http_body_read(ResponseHeaders, Ref) of
+                {ok, ResponseBody} -> {error, ResponseBody};
+                {error, Reason} -> {error, Reason}
+            end;
         {error, Reason} -> {error, Reason}
     end.
 
-http_body_read(Ref) ->
-    {ok, Body} = hackney:body(Ref),
-    {ok, jsx:decode(<<"[", Body/binary, "]">>, ?JsonDecodeOptions)}.
+http_body_read(Headers, Ref) when is_reference(Ref) ->
+    case hackney:body(Ref) of
+        {ok, Body} -> {ok, http_body_read(Headers, Body)};
+        {error, Reason} -> {error, Reason}
+    end;
+
+http_body_read(Headers, Body) ->
+    IsJson = {<<"Content-Type">>, <<"application/json">>} ==
+             lists:keyfind(<<"Content-Type">>, 1, Headers) orelse
+             {"Content-Type", "application/json"} ==
+             lists:keyfind("Content-Type", 1, Headers),
+
+    if IsJson -> jsx:decode(Body, ?JsonDecodeOptions);
+    not IsJson -> Body end.
 
 http_stream_read(Ref) ->
     http_stream_read(Ref, false).
@@ -139,8 +154,12 @@ ws_connect(Url, Headers, Options, Access) ->
                            ws_options(Options, Access))
     of
         {ok, Result} -> {ok, Result};
-        {error, Reason} -> {error, ws_read_error(Reason)}
+        {error, Reason} -> {error, ws_error_read(Reason)}
     end.
+
+ws_error_read({http_message, response, _Status, ResponseHeaders, Body}) ->
+    http_body_read(ResponseHeaders, Body);
+ws_error_read(Reason) -> Reason.
 
 ws_close(Socket) -> ewsc:close(Socket).
 
@@ -153,7 +172,7 @@ ws_recv(Socket, Acc) ->
         {ok, Messages} ->
             ws_recv(Socket, ws_append_messages(Acc, Messages));
         {error, Reason} ->
-            {error, ws_read_error(Reason)}
+            {error, Reason}
     end.
 
 ws_recv_close(Socket) ->
@@ -165,13 +184,6 @@ ws_append_messages(Messages, []) -> Messages;
 ws_append_messages(Messages, NewMessages) ->
     NewMessagesStripped = [M || <<_, M/binary>> <- NewMessages],
     <<Messages/binary, (iolist_to_binary(NewMessagesStripped))/binary>>.
-
-ws_read_error({http_message, response, StatusLine, Headers, Body}) ->
-    IsJson = is_json(Headers),
-    if IsJson -> jsx:decode(Body, ?JsonDecodeOptions);
-    not IsJson -> {StatusLine, Headers, Body} end;
-
-ws_read_error(Error) -> Error.
 
 url(Resource, Query, Access) ->
     maps:get(server, Access, "") ++ Resource ++ url_query(Query).
@@ -190,10 +202,6 @@ authorization(#{token := Token}) -> "Bearer " ++ Token;
 authorization(#{username := UserName, password := Password}) ->
     base64:encode(UserName ++ [$:|Password]);
 authorization(_Access) -> "".
-
-is_json(Headers) ->
-    {"Content-Type", "application/json"} ==
-        lists:keyfind("Content-Type", 1, Headers).
 
 http_options(Options, Access) -> [
     {ssl_options, ssl_options(Access)},
