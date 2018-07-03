@@ -19,6 +19,9 @@
     ws_recv_close/1
 ]).
 
+-define(HeaderCTJson, {"Content-Type", "application/json"}).
+-define(HeaderCTJsonBin, {<<"Content-Type">>, <<"application/json">>}).
+
 -define(JsonDecodeOptions, [return_maps, {labels, atom}]).
 
 -define(RecvTimeout, 60 * 1000). % milliseconds
@@ -86,10 +89,9 @@ http_body_read(Headers, Ref) when is_reference(Ref) ->
     end;
 
 http_body_read(Headers, Body) ->
-    IsJson = {<<"Content-Type">>, <<"application/json">>} ==
-             lists:keyfind(<<"Content-Type">>, 1, Headers) orelse
-             {"Content-Type", "application/json"} ==
-             lists:keyfind("Content-Type", 1, Headers),
+    IsJson = ?HeaderCTJsonBin == lists:keyfind(<<"Content-Type">>, 1, Headers)
+             orelse
+             ?HeaderCTJson == lists:keyfind("Content-Type", 1, Headers),
 
     if IsJson -> jsx:decode(Body, ?JsonDecodeOptions);
     not IsJson -> Body end.
