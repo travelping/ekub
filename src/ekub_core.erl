@@ -19,8 +19,10 @@
     ws_recv_close/1
 ]).
 
--define(HeaderCTJson, {"Content-Type", "application/json"}).
--define(HeaderCTJsonBin, {<<"Content-Type">>, <<"application/json">>}).
+-define(HeaderTextContentTypeJson, {"Content-Type", "application/json"}).
+-define(HeaderContentTypeJson, {<<"Content-Type">>, <<"application/json">>}).
+-define(HeaderContentTypeJsonPatch,
+    {<<"Content-Type">>, <<"application/strategic-merge-patch+json">>}).
 
 -define(JsonDecodeOptions, [return_maps, {labels, atom}]).
 
@@ -75,7 +77,7 @@ http_stream_request(Method, Url, Headers, Body, Options, Access) ->
 
 http_request_ref(Method, Url, Headers, Body, Options, Access) ->
     case hackney:request(
-        Method, Url, headers(Headers, Body, Access),
+        Method, Url, headers(Method, Headers, Body, Access),
         body(Body), http_options(Options, Access)
     ) of
         {ok, Code, ResponseHeaders, Ref} when Code >= 200, Code =< 299 ->
@@ -95,9 +97,10 @@ http_body_read(Headers, Ref) when is_reference(Ref) ->
     end;
 
 http_body_read(Headers, Body) ->
-    IsJson = ?HeaderCTJsonBin == lists:keyfind(<<"Content-Type">>, 1, Headers)
-             orelse
-             ?HeaderCTJson == lists:keyfind("Content-Type", 1, Headers),
+    IsJson = ?HeaderContentTypeJson ==
+                 lists:keyfind(<<"Content-Type">>, 1, Headers) orelse
+             ?HeaderTextContentTypeJson ==
+                 lists:keyfind("Content-Type", 1, Headers),
 
     if IsJson -> jsx:decode(Body, ?JsonDecodeOptions);
     not IsJson -> Body end.
@@ -210,10 +213,13 @@ url_query_param({Key, Value}) ->
     http_uri:encode(underscore_atom_to_camel_case_string(Key)) ++
     [$=|http_uri:encode(to_string(Value))].
 
-headers(Headers, Body, Access) when is_map(Body)->
-    [?HeaderCTJsonBin|headers(Headers, Access)];
+headers(patch, Headers, Body, Access) when is_map(Body)->
+    [?HeaderContentTypeJsonPatch|headers(Headers, Access)];
 
-headers(Headers, _Body, Access) -> headers(Headers, Access).
+headers(_Method, Headers, Body, Access) when is_map(Body)->
+    [?HeaderContentTypeJson|headers(Headers, Access)];
+
+headers(_Method, Headers, _Body, Access) -> headers(Headers, Access).
 
 headers(Headers, Access) ->
     [{"Authorization", authorization(Access)}|Headers].
