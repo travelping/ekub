@@ -15,50 +15,38 @@
 ]).
 
 -define(Core, ekub_core).
--define(CoreTools, ekub_core_tools).
 
 read(Namespace, PodName, Access) -> read(Namespace, PodName, [], Access).
 read(Namespace, PodName, Options, Access) ->
-    get("/api/v1/namespaces/~s/pods/~s", [Namespace, PodName], Options, Access).
+    Resource = {"/api/v1/namespaces/~s/pods/~s", [Namespace, PodName]},
+    get(Resource, Options, Access).
 
 list(Namespace, Access) -> list(Namespace, [], Access).
 list(Namespace, Options, Access) ->
-    get("/api/v1/namespaces/~s/pods", [Namespace], Options, Access).
+    get({"/api/v1/namespaces/~s/pods", [Namespace]}, Options, Access).
 
 list_all_namespaces(Access) -> list_all_namespaces([], Access).
 list_all_namespaces(Options, Access) ->
-    get("/api/v1/pods", [], Options, Access).
+    get("/api/v1/pods", Options, Access).
 
 watch(Namespace, PodName, Access) -> watch(Namespace, PodName, [], Access).
 watch(Namespace, PodName, Options, Access) ->
-    ?Core:http_stream_request(
-        ?CoreTools:resource("/api/v1/watch/namespaces/~s/pods/~s",
-                            [Namespace, PodName]),
-        ?CoreTools:query(Options),
-        Access
-    ).
+    Resource = {"/api/v1/watch/namespaces/~s/pods/~s", [Namespace, PodName]},
+    ?Core:http_stream_request(Resource, Options, Access).
 
 watch_list(Namespace, Access) -> watch_list(Namespace, [], Access).
 watch_list(Namespace, Options, Access) ->
-    ?Core:http_stream_request(
-        ?CoreTools:resource("/api/v1/watch/namespaces/~s/pods", [Namespace]),
-        ?CoreTools:query(Options),
-        Access
-    ).
+    Resource = {"/api/v1/watch/namespaces/~s/pods", [Namespace]},
+    ?Core:http_stream_request(Resource, Options, Access).
 
 watch_list_all_namespaces(Access) -> watch_list_all_namespaces([], Access).
 watch_list_all_namespaces(Options, Access) ->
-    ?Core:http_stream_request(
-        ?CoreTools:resource("/api/v1/watch/pods", []),
-        ?CoreTools:query(Options),
-        Access
-    ).
+    ?Core:http_stream_request("/api/v1/watch/pods", Options, Access).
 
 watch(Ref) -> ?Core:http_stream_read(Ref).
 
 exec(Namespace, PodName, ContainerName, Command, Access) ->
-    Resource = ?CoreTools:resource("/api/v1/namespaces/~s/pods/~s/exec",
-                                   [Namespace, PodName]),
+    Resource = {"/api/v1/namespaces/~s/pods/~s/exec", [Namespace, PodName]},
 
     Query = [{"stdout", "true"},
              {"stderr", "true"},
@@ -71,9 +59,8 @@ read_log(Namespace, PodName, Access) ->
     read_log(Namespace, PodName, [], Access).
 
 read_log(Namespace, PodName, Options, Access) ->
-    get("/api/v1/namespaces/~s/pods/~s/log",
-        [Namespace, PodName], Options, Access).
+    Resource = {"/api/v1/namespaces/~s/pods/~s/log", [Namespace, PodName]},
+    get(Resource, Options, Access).
 
-get(Resource, Args, Options, Access) ->
-    ?Core:http_request(?CoreTools:resource(Resource, Args),
-                       ?CoreTools:query(Options), Access).
+get(Resource, Query, Access) ->
+    ?Core:http_request(Resource, Query, Access).

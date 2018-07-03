@@ -185,6 +185,12 @@ ws_append_messages(Messages, NewMessages) ->
     NewMessagesStripped = [M || <<_, M/binary>> <- NewMessages],
     <<Messages/binary, (iolist_to_binary(NewMessagesStripped))/binary>>.
 
+resource(Path, Args) ->
+    lists:flatten(io_lib:format(Path, Args)).
+
+url({Path, Args}, Query, Access) ->
+    url(resource(Path, Args), Query, Access);
+
 url(Resource, Query, Access) ->
     maps:get(server, Access, "") ++ Resource ++ url_query(Query).
 
@@ -193,7 +199,8 @@ url_query(Query) ->
     [$?|lists:flatten(lists:join($&, lists:map(fun url_query_param/1, Query)))].
 
 url_query_param({Key, Value}) ->
-    [http_uri:encode(Key)] ++ [$=|http_uri:encode(Value)].
+    http_uri:encode(underscore_atom_to_camel_case_string(Key)) ++
+    [$=|http_uri:encode(to_string(Value))].
 
 headers(Headers, Access) ->
     [{"Authorization", authorization(Access)}|Headers].
@@ -235,3 +242,14 @@ ssl_option_fun(Access) -> fun
         ClientKey = maps:get(client_key, Access, false),
         ClientKey /= false andalso {true, {key, ClientKey}}
 end.
+
+underscore_atom_to_camel_case_string(Atom) when is_atom(Atom) ->
+    case string:split(atom_to_list(Atom), "_", all) of
+        [First] -> First;
+        [First|Rest] -> lists:flatten([First|[[H-32|T] || [H|T] <- Rest]])
+    end;
+underscore_atom_to_camel_case_string(Term) -> Term.
+
+to_string(Atom) when is_atom(Atom) -> atom_to_list(Atom);
+to_string(Number) when is_number(Number) -> integer_to_list(Number);
+to_string(String) when is_list(String) -> String.
