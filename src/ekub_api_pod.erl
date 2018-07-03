@@ -1,6 +1,10 @@
 -module(ekub_api_pod).
 
 -export([
+    create/3,
+    patch/4,
+    delete/3, delete/4,
+
     read/3, read/4,
     list/2, list/3,
     list_all_namespaces/1, list_all_namespaces/2,
@@ -16,18 +20,32 @@
 
 -define(Core, ekub_core).
 
+create(Namespace, Pod, Access) ->
+    Resource = {"/api/v1/namespaces/~s/pods", [Namespace]},
+    ?Core:http_request(post, Resource, [], Pod, Access).
+
+patch(Namespace, PodName, Patch, Access) ->
+    Resource = {"/api/v1/namespaces/~s/pods/~s", [Namespace, PodName]},
+    ?Core:http_request(patch, Resource, [], Patch, Access).
+
+delete(Namespace, PodName, Access) -> delete(Namespace, PodName, [], Access).
+delete(Namespace, PodName, Options, Access) ->
+    Resource = {"/api/v1/namespaces/~s/pods/~s", [Namespace, PodName]},
+    ?Core:http_request(delete, Resource, Options, Access).
+
 read(Namespace, PodName, Access) -> read(Namespace, PodName, [], Access).
 read(Namespace, PodName, Options, Access) ->
     Resource = {"/api/v1/namespaces/~s/pods/~s", [Namespace, PodName]},
-    get(Resource, Options, Access).
+    ?Core:http_request(Resource, Options, Access).
 
 list(Namespace, Access) -> list(Namespace, [], Access).
 list(Namespace, Options, Access) ->
-    get({"/api/v1/namespaces/~s/pods", [Namespace]}, Options, Access).
+    Resource = {"/api/v1/namespaces/~s/pods", [Namespace]},
+    ?Core:http_request(Resource, Options, Access).
 
 list_all_namespaces(Access) -> list_all_namespaces([], Access).
 list_all_namespaces(Options, Access) ->
-    get("/api/v1/pods", Options, Access).
+    ?Core:http_request("/api/v1/pods", Options, Access).
 
 watch(Namespace, PodName, Access) -> watch(Namespace, PodName, [], Access).
 watch(Namespace, PodName, Options, Access) ->
@@ -60,7 +78,4 @@ read_log(Namespace, PodName, Access) ->
 
 read_log(Namespace, PodName, Options, Access) ->
     Resource = {"/api/v1/namespaces/~s/pods/~s/log", [Namespace, PodName]},
-    get(Resource, Options, Access).
-
-get(Resource, Query, Access) ->
-    ?Core:http_request(Resource, Query, Access).
+    ?Core:http_request(Resource, Options, Access).
