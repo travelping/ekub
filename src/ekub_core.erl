@@ -1,8 +1,8 @@
 -module(ekub_core).
 
 -export([
-    http_request/2, http_request/3,
-    http_request/6, http_request/7,
+    http_request/2, http_request/3, http_request/4,
+    http_request/5, http_request/6, http_request/7,
 
     http_stream_request/2, http_stream_request/3,
     http_stream_request/6, http_stream_request/7,
@@ -39,6 +39,12 @@ http_request(Resource, Access) ->
 http_request(Resource, Query, Access) ->
     http_request(get, Resource, Query, [], <<>>, [], Access).
 
+http_request(Method, Resource, Query, Access) ->
+    http_request(Method, Resource, Query, [], <<>>, [], Access).
+
+http_request(Method, Resource, Query, Body, Access) ->
+    http_request(Method, Resource, Query, [], Body, [], Access).
+
 http_request(Method, Resource, Query, Headers, Body, Options, Access) ->
     Url = url(Resource, Query, Access),
     http_request(Method, Url, Headers, Body, Options, Access).
@@ -69,8 +75,8 @@ http_stream_request(Method, Url, Headers, Body, Options, Access) ->
 
 http_request_ref(Method, Url, Headers, Body, Options, Access) ->
     case hackney:request(
-        Method, Url, headers(Headers, Access),
-        Body, http_options(Options, Access)
+        Method, Url, headers(Headers, Body, Access),
+        body(Body), http_options(Options, Access)
     ) of
         {ok, Code, ResponseHeaders, Ref} when Code >= 200, Code =< 299 ->
             {ok, {Code, ResponseHeaders, Ref}};
@@ -204,6 +210,11 @@ url_query_param({Key, Value}) ->
     http_uri:encode(underscore_atom_to_camel_case_string(Key)) ++
     [$=|http_uri:encode(to_string(Value))].
 
+headers(Headers, Body, Access) when is_map(Body)->
+    [?HeaderCTJsonBin|headers(Headers, Access)];
+
+headers(Headers, _Body, Access) -> headers(Headers, Access).
+
 headers(Headers, Access) ->
     [{"Authorization", authorization(Access)}|Headers].
 
@@ -211,6 +222,9 @@ authorization(#{token := Token}) -> "Bearer " ++ Token;
 authorization(#{username := UserName, password := Password}) ->
     base64:encode(UserName ++ [$:|Password]);
 authorization(_Access) -> "".
+
+body(Body) when is_map(Body) -> jsx:encode(Body);
+body(Body) -> Body.
 
 http_options(Options, Access) -> [
     {ssl_options, ssl_options(Access)},
