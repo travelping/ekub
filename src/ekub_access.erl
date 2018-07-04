@@ -101,20 +101,20 @@ read(Options) ->
                       {ok, Value} <- [maps:find(Name, Options)]],
     lists:foldl(fun read_option/2, {ok, #{}}, OrderedOptions).
 
-read_option({Name, Value}, {ok, Access}) ->
-    case read_option(Name, Value) of
+read_option(Option, {ok, Access}) ->
+    case read_option(Option) of
         {ok, Result} -> {ok, maps:merge(Access, Result)};
-        {error, Reason} -> {error, {Name, Reason}}
+        {error, Reason} -> {error, {Option, Reason}}
     end;
-read_option({_Name, _Value}, {error, Reason}) -> {error, Reason};
+read_option(_Option, {error, Reason}) -> {error, Reason}.
 
-read_option(kubeconfig, FileName) ->
+read_option({kubeconfig, FileName}) ->
     case ?Config:read(FileName) of
         {ok, Config} -> read_kubeconfig(Config);
         {error, Reason} -> {error, Reason}
     end;
 
-read_option(Name, Value) when
+read_option({Name, Value}) when
     Name == ca_cert_file;
     Name == client_cert_file;
     Name == client_key_file
@@ -124,7 +124,7 @@ read_option(Name, Value) when
         {error, Reason} -> {error, Reason}
     end;
 
-read_option(Name, Value) when
+read_option({Name, Value}) when
     Name == ca_cert;
     Name == client_cert;
     Name == client_key
@@ -134,7 +134,7 @@ read_option(Name, Value) when
         {error, Reason} -> {error, Reason}
     end;
 
-read_option(Name, Value) when
+read_option({Name, Value}) when
     Name == namespace_file;
     Name == token_file
 ->
@@ -143,7 +143,7 @@ read_option(Name, Value) when
         {error, Reason} -> {error, Reason}
     end;
 
-read_option(Name, Value) -> {ok, #{Name => Value}}.
+read_option({Name, Value}) -> {ok, #{Name => Value}}.
 
 read_kubeconfig(Config) ->
     case maps:find("current-context", Config) of
@@ -180,8 +180,8 @@ complete_kubeconfig(Name, Value, {ok, Config}) ->
 
 complete_kubeconfig(_Name, _Value, {error, Reason}) -> {error, Reason}.
 
-complete_kubeconfig({Name, {ok, Value}}, {ok, Config}) ->
-    {ok, maps:put(Name, Value, Config)};
+complete_kubeconfig({Name, {ok, Result}}, {ok, Config}) ->
+    {ok, maps:put(Name, Result, Config)};
 
 complete_kubeconfig({Name, {error, Reason}}, {ok, _Config}) ->
     {error, {Name, Reason}};
