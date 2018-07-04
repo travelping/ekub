@@ -172,21 +172,21 @@ complete_kubeconfig(Name, Value, {ok, Config}) ->
         "certificate-authority-data" -> {ca_cert, decode_cert_b64(Value)};
         "client-certificate-data" -> {client_cert, decode_cert_b64(Value)};
         "client-key-data" -> {client_key, decode_cert_b64(Value)};
-        "certificate-authority" -> {ca_cert, decode_cert_file(Value)};
-        "client-certificate" -> {client_cert, decode_cert_file(Value)};
-        "client-key" -> {client_key, decode_cert_file(Value)};
+        "certificate-authority" -> {ca_cert, Value, decode_cert_file(Value)};
+        "client-certificate" -> {client_cert, Value, decode_cert_file(Value)};
+        "client-key" -> {client_key, Value, decode_cert_file(Value)};
         Name -> {name_to_atom(Name), {ok, Value}}
     end, {ok, Config});
 
 complete_kubeconfig(_Name, _Value, {error, Reason}) -> {error, Reason}.
 
-complete_kubeconfig({Name, {ok, Result}}, {ok, Config}) ->
-    {ok, maps:put(Name, Result, Config)};
-
-complete_kubeconfig({Name, {error, Reason}}, {ok, _Config}) ->
-    {error, {Name, Reason}};
-
-complete_kubeconfig(_Param, {error, Reason}) -> {error, Reason}.
+complete_kubeconfig(Result, {ok, Config}) ->
+    case Result of
+        {Name, {ok, Data}} -> {ok, maps:put(Name, Data, Config)};
+        {Name, _Value, {ok, Data}} -> {ok, maps:put(Name, Data, Config)};
+        {Name, {error, Reason}} -> {error, {Name, Reason}};
+        {Name, Value, {error, Reason}} -> {error, {Name, Value, Reason}}
+    end.
 
 decode_cert_file(FileName) ->
     case file:read_file(FileName) of
