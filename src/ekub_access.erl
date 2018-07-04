@@ -1,6 +1,7 @@
 -module(ekub_access).
 
 -export([
+    default_options/0,
     read/0, read/1
 ]).
 
@@ -59,14 +60,40 @@
     server
 ]).
 
+-define(DefaultOptionsOrder, [kubeconfig, service_account]).
+
+-define(DefaultServiceAccountDir,
+    "/var/run/secrets/kubernetes.io/serviceaccount").
+
+-spec default_options() -> DefaultOptions :: [options()].
+default_options() -> [
+    #{kubeconfig => ?Config:filename()},
+
+    #{ca_cert_file => ?DefaultServiceAccountDir ++ "/ca.crt",
+      token_file => ?DefaultServiceAccountDir ++ "/token",
+      namespace_file => ?DefaultServiceAccountDir ++ "/namespace"}
+].
+
+-spec read() ->
+    Result :: {ok, access()} |
+              {error, [{OptionName :: term(), Reason :: term()}]}.
+
+read() ->
+    case lists:foldl(fun read/2, {error, []}, default_options()) of
+        {ok, Access} -> {ok, Access};
+        {error, Reasons} -> {error, lists:reverse(Reasons)}
+    end.
+
+read(_Options, {ok, Access}) -> {ok, Access};
+read(Options, {error, Reasons}) ->
+    case read(Options) of
+        {ok, Access} -> {ok, Access};
+        {error, Reason} -> {error, [Reason|Reasons]}
+    end.
+
 -spec read(Options :: options()) ->
     Result :: {ok, access()} |
               {error, {OptionName :: term(), Reason :: term()}}.
-
-read() -> read(#{}).
-
-read(Options) when map_size(Options) == 0 ->
-    read(#{kubeconfig => ?Config:filename()});
 
 read(Options) ->
     OrderedOptions = [{Name, Value} || Name <- ?OptionsOrder,
