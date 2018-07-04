@@ -79,16 +79,17 @@ default_options() -> [
               {error, [{OptionName :: term(), Reason :: term()}]}.
 
 read() ->
-    case lists:foldl(fun read/2, {error, []}, default_options()) of
+    ReadFun = fun
+        (_Options, {ok, Access}) -> {ok, Access};
+        (Options, {error, Reasons}) ->
+            case read(Options) of
+                {ok, Access} -> {ok, Access};
+                {error, Reason} -> {error, [Reason|Reasons]}
+            end
+    end,
+    case lists:foldl(ReadFun, {error, []}, default_options()) of
         {ok, Access} -> {ok, Access};
         {error, Reasons} -> {error, lists:reverse(Reasons)}
-    end.
-
-read(_Options, {ok, Access}) -> {ok, Access};
-read(Options, {error, Reasons}) ->
-    case read(Options) of
-        {ok, Access} -> {ok, Access};
-        {error, Reason} -> {error, [Reason|Reasons]}
     end.
 
 -spec read(Options :: options()) ->
