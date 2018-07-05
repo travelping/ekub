@@ -4,7 +4,6 @@
     filename/0,
 
     read/1, read/2,
-    read_yaml/1,
 
     minify/1,
     flatten/1,
@@ -13,6 +12,8 @@
     cluster/2,
     user/2
 ]).
+
+-define(Yaml, ekub_yaml).
 
 -include_lib("yamerl/include/yamerl_errors.hrl").
 
@@ -29,10 +30,7 @@ filename() ->
     {ok, Config :: kubeconfig()} | {error, Reason :: term()}.
 
 read(FileName) ->
-    case file:read_file(FileName) of
-        {ok, Binary} -> read_yaml(Binary);
-        {error, Reason} -> {error, Reason}
-    end.
+    ?Yaml:read_file(FileName).
 
 -spec read(FileName :: string(), Options :: [minify | flatten])  ->
     {ok, Config :: kubeconfig()} | {error, Reason :: term()}.
@@ -44,17 +42,6 @@ read(FileName, Options) ->
         (Option, {ok, _Config}) -> {error, {bad_option, Option}};
         (_Option, {error, Reason}) -> {error, Reason}
     end, read(FileName), Options).
-
--spec read_yaml(Yaml :: binary())  ->
-    {ok, Config :: kubeconfig()} | {error, Reason :: term()}.
-
-read_yaml(Yaml) ->
-    try yamerl:decode(Yaml) of
-        Map -> {ok, maps_from_list(Map)}
-    catch
-        throw:{yamerl_exception, [Error]} ->
-            {error, Error#yamerl_parsing_error.text}
-    end.
 
 -spec minify(Config :: kubeconfig()) ->
     {ok, MinifiedConfig :: kubeconfig()} | {error, Reason :: term()}.
@@ -133,19 +120,6 @@ subject(Ref, SubjectName, Config) ->
         [] -> #{};
         [Subject|_] -> Subject
     end.
-
-maps_from_list([List = [H|_]]) when not is_number(H) ->
-    maps_from_list(List);
-
-maps_from_list(List) ->
-    lists:foldl(fun
-        ({Key, Values = [[H|_]|_]}, Map) when not is_number(H) ->
-            maps:put(Key, [maps_from_list(Value) || Value <- Values], Map);
-        ({Key, Value = [H|_]}, Map) when is_tuple(H) ->
-            maps:put(Key, maps_from_list(Value), Map);
-        ({Key, Value}, Map) -> maps:put(Key, Value, Map);
-        (_Other, Map) -> Map
-    end, #{}, List).
 
 read_file_as_base64(FileName) ->
     case file:read_file(FileName) of
