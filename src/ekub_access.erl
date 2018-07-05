@@ -5,23 +5,22 @@
     read/0, read/1
 ]).
 
--type options() :: #{
-    kubeconfig => FileName :: string(),
-    ca_cert_file => FileName :: string(),
-    ca_cert => CaCert :: base64(),
-    client_cert_file => FileName :: string(),
-    client_cert => ClientCert :: base64(),
-    client_key_file => FileName :: string(),
-    client_key => ClientKey :: base64(),
-    insecure_skip_tls_verify => SkipTls :: boolean(),
-    token_file => FileName :: string(),
-    token => Token :: string(),
-    namespace_file => FileName :: string(),
-    namespace => Namespace :: string(),
-    username => UserName :: string(),
-    password => Password :: string(),
-    server => Server :: string()
-}.
+-type option() ::
+    {kubeconfig, FileName :: string()} |
+    {ca_cert_file, FileName :: string()} |
+    {ca_cert, CaCert :: base64()} |
+    {client_cert_file, FileName :: string()} |
+    {client_cert, ClientCert :: base64()} |
+    {client_key_file, FileName :: string()} |
+    {client_key, ClientKey :: base64()} |
+    {insecure_skip_tls_verify, SkipTls :: boolean()} |
+    {token_file, FileName :: string()} |
+    {token, Token :: string()} |
+    {namespace_file, FileName :: string()} |
+    {namespace, Namespace :: string()} |
+    {username, UserName :: string()} |
+    {password, Password :: string()} |
+    {server, Server :: string()}.
 
 -type access() ::
     #{access_key() => access_value()}.
@@ -65,40 +64,40 @@
 -define(DefaultServiceAccountDir,
     "/var/run/secrets/kubernetes.io/serviceaccount").
 
--spec default_options() -> DefaultOptions :: [options()].
+-spec default_options() -> DefaultOptions :: [[option()]].
 default_options() -> [
-    #{kubeconfig => ?Config:filename()},
+    [{kubeconfig, ?Config:filename()}],
 
-    #{ca_cert_file => ?DefaultServiceAccountDir ++ "/ca.crt",
-      token_file => ?DefaultServiceAccountDir ++ "/token",
-      namespace_file => ?DefaultServiceAccountDir ++ "/namespace"}
+    [{ca_cert_file, ?DefaultServiceAccountDir ++ "/ca.crt"},
+     {token_file, ?DefaultServiceAccountDir ++ "/token"},
+     {namespace_file, ?DefaultServiceAccountDir ++ "/namespace"}]
 ].
 
 -spec read() ->
     Result :: {ok, access()} |
-              {error, [{OptionName :: term(), Reason :: term()}]}.
+              {error, [{Option :: option(), Reason :: term()}]}.
 
 read() ->
-    ReadFun = fun
-        (_Options, {ok, Access}) -> {ok, Access};
-        (Options, {error, Reasons}) ->
-            case read(Options) of
-                {ok, Access} -> {ok, Access};
-                {error, Reason} -> {error, [Reason|Reasons]}
-            end
-    end,
-    case lists:foldl(ReadFun, {error, []}, default_options()) of
+     case lists:foldl(fun read/2, {error, []}, default_options()) of
+         {ok, Access} -> {ok, Access};
+         {error, Reasons} -> {error, lists:reverse(Reasons)}
+     end.
+
+read(_Options, {ok, Access}) -> {ok, Access};
+read(Options, {error, Reasons}) ->
+    case read(Options) of
         {ok, Access} -> {ok, Access};
-        {error, Reasons} -> {error, lists:reverse(Reasons)}
+        {error, Reason} -> {error, [Reason|Reasons]}
     end.
 
--spec read(Options :: options()) ->
+-spec read(Options :: [option()]) ->
     Result :: {ok, access()} |
-              {error, {OptionName :: term(), Reason :: term()}}.
+              {error, {Option :: option(), Reason :: term()}}.
 
 read(Options) ->
+    OptionsMap = maps:from_list(Options),
     OrderedOptions = [{Name, Value} || Name <- ?OptionsOrder,
-                      {ok, Value} <- [maps:find(Name, Options)]],
+                      {ok, Value} <- [maps:find(Name, OptionsMap)]],
     lists:foldl(fun read_option/2, {ok, #{}}, OrderedOptions).
 
 read_option(Option, {ok, Access}) ->
