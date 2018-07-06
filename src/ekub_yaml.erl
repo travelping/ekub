@@ -17,11 +17,14 @@ read_file(FileName, Options) ->
 read(Yaml) -> read(Yaml, []).
 read(Yaml, Options) ->
     try yamerl:decode(Yaml) of
-        Map -> {ok, maps_from_list(Map, Options)}
+        List -> {ok, maps_from_list(List, Options)}
     catch
         throw:{yamerl_exception, [Error]} ->
             {error, Error#yamerl_parsing_error.text}
     end.
+
+maps_from_list(List = [[H|_]], Options) when is_number(H) ->
+    lists:foldl(fun(Item, Map) -> maps_put(Item, Map, Options) end, #{}, List);
 
 maps_from_list([List = [H|_]], Options) when not is_number(H) ->
     maps_from_list(List, Options);
@@ -35,6 +38,9 @@ maps_from_list(List, Options) ->
             maps_put(Key, maps_from_list(Value, Options), Map, Options);
         ({Key, Value}, Map) -> maps_put(Key, Value, Map, Options)
     end, #{}, List).
+
+maps_put(Key, Map, Options) ->
+    maps_put(Key, null, Map, Options).
 
 maps_put(Key, Value, Map, Options) -> 
     IsBinaryOption = lists:member(binary, Options),
