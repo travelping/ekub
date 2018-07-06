@@ -25,8 +25,6 @@
         args: [\"Hello World\"]
 ").
 
--define(BadYaml, "Bad Yaml").
-
 yamerl_started_test() ->
     ?assertEqual({ok, [yamerl]}, application:ensure_all_started(yamerl)).
 
