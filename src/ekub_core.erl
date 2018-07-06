@@ -19,6 +19,8 @@
     ws_recv_close/1
 ]).
 
+-define(Yaml, ekub_yaml).
+
 -define(HeaderTextContentTypeJson, {"Content-Type", "application/json"}).
 -define(HeaderContentTypeJson, {<<"Content-Type">>, <<"application/json">>}).
 -define(HeaderContentTypeJsonPatch,
@@ -39,10 +41,10 @@ http_request(Resource, Access) ->
     http_request(Resource, [], Access).
 
 http_request(Resource, Query, Access) ->
-    http_request(get, Resource, Query, [], <<>>, [], Access).
+    http_request(get, Resource, Query, [], false, [], Access).
 
 http_request(Method, Resource, Query, Access) ->
-    http_request(Method, Resource, Query, [], <<>>, [], Access).
+    http_request(Method, Resource, Query, [], false, [], Access).
 
 http_request(Method, Resource, Query, Body, Access) ->
     http_request(Method, Resource, Query, [], Body, [], Access).
@@ -74,6 +76,16 @@ http_stream_request(Method, Url, Headers, Body, Options, Access) ->
         {ok, {_Code, _ResponseHeaders, Ref}} -> {ok, Ref};
         {error, Reason} -> {error, Reason}
     end.
+
+http_request_ref(Method, Url, Headers, Body, Options, Access)
+    when is_list(Body); is_binary(Body)
+->
+    case ?Yaml:read(Body, [binary]) of
+        {ok, ReadBody} ->
+            http_request_ref(Method, Url, Headers, ReadBody, Options, Access);
+        {error, Reason} ->
+            {error, {yaml, Reason}}
+    end;
 
 http_request_ref(Method, Url, Headers, Body, Options, Access) ->
     case hackney:request(
@@ -213,10 +225,10 @@ url_query_param({Key, Value}) ->
     http_uri:encode(underscore_atom_to_camel_case_string(Key)) ++
     [$=|http_uri:encode(to_string(Value))].
 
-headers(patch, Headers, Body, Access) when is_map(Body)->
+headers(patch, Headers, Body, Access) when is_map(Body) ->
     [?HeaderContentTypeJsonPatch|headers(Headers, Access)];
 
-headers(_Method, Headers, Body, Access) when is_map(Body)->
+headers(_Method, Headers, Body, Access) when is_map(Body) ->
     [?HeaderContentTypeJson|headers(Headers, Access)];
 
 headers(_Method, Headers, _Body, Access) -> headers(Headers, Access).
@@ -229,8 +241,8 @@ authorization(#{username := UserName, password := Password}) ->
     base64:encode(UserName ++ [$:|Password]);
 authorization(_Access) -> "".
 
-body(Body) when is_map(Body) -> jsx:encode(Body);
-body(Body) -> Body.
+body(false) -> <<>>;
+body(Body) when is_map(Body) -> jsx:encode(Body).
 
 http_options(Options, Access) -> [
     {ssl_options, ssl_options(Access)},
