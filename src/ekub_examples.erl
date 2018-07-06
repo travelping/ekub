@@ -1,42 +1,95 @@
 -module(ekub_examples).
 
 -export([
-    pod_create/0,
-    pod_patch/0,
-    pod_delete/0
+    pod_yaml_create/0,
+    pod_map_create/0,
+
+    pod_yaml_patch/0,
+    pod_map_patch/0,
+
+    pod_list/0,
+
+    pod_yaml_delete/0,
+    pod_map_delete/0
 ]).
 
 -define(ApiPod, ekub_api_pod).
 
--define(Namespace, "default").
--define(PodName, "ekub-example").
--define(ContainerName1, "ekub-example-1").
--define(ContainerName2, "ekub-example-2").
+pod_yaml_create() -> ?ApiPod:create(
+    "ekub-example", % namespace
+    "
+     apiVersion: v1
+     kind: Pod
+     metadata:
+       name: ekub-example-yaml
+     spec:
+       containers:
+       - name: ekub-example-yaml
+         image: aialferov/pause:1.0.0
+    ",
+    access()
+).
 
--define(Pod,
+pod_map_create() -> ?ApiPod:create(
+    "ekub-example", % namespace
+
     #{apiVersion => <<"v1">>,
       kind => <<"Pod">>,
       metadata =>
-        #{name => list_to_binary(?PodName)},
+        #{name => <<"ekub-example-map">>},
       spec =>
         #{containers => [
-          #{name => list_to_binary(?ContainerName1),
+          #{name => <<"ekub-example-map">>,
             image => <<"aialferov/pause:1.0.0">>}
-        ]}}
+        ]}},
+
+    access()
 ).
 
--define(Patch,
+pod_yaml_patch() -> ?ApiPod:patch(
+    "ekub-example", % namespace
+    "ekub-example-yaml", % pod name
+    "
+     apiVersion: v1
+     kind: Patch
+     spec:
+       containers:
+       - name: ekub-example-yaml
+         image: aialferov/pause:1.1.0
+    ",
+    access()
+).
+
+pod_map_patch() -> ?ApiPod:patch(
+    "ekub-example", % namespace
+    "ekub-example-map", % pod name
+
     #{apiVersion => <<"v1">>,
       kind => <<"Patch">>,
       spec =>
         #{containers => [
-          #{name => list_to_binary(?ContainerName1),
+          #{name => <<"ekub-example-map">>,
             image => <<"aialferov/pause:1.1.0">>}
-        ]}}
+        ]}},
+
+    access()
 ).
 
-pod_create() -> ?ApiPod:create(?Namespace, ?Pod, access()).
-pod_patch() -> ?ApiPod:patch(?Namespace, ?PodName, ?Patch, access()).
-pod_delete() -> ?ApiPod:delete(?Namespace, ?PodName, access()).
+pod_list() -> ?ApiPod:list(
+    "ekub-example", % namespace
+    access()
+).
+
+pod_yaml_delete() -> ?ApiPod:delete(
+    "ekub-example", % namespace
+    "ekub-example-yaml", % pod name
+    access()
+).
+
+pod_map_delete() -> ?ApiPod:delete(
+    "ekub-example", % namespace
+    "ekub-example-map", % pod name
+    access()
+).
 
 access() -> {ok, Access} = ekub_access:read(), Access.
