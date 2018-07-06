@@ -71,3 +71,9 @@ read_yaml_binary_test() ->
                   <<"args">> => [<<"Hello World">>]}
               ]}}
     }, ?M:read(?Yaml, [binary])).
+
+read_yaml_string_test() ->
+    ?assertEqual({ok, #{"string" => null}}, ?M:read("string")).
+
+read_yaml_string_binary_test() ->
+    ?assertEqual({ok, #{<<"string">> => null}}, ?M:read("string", [binary])).
