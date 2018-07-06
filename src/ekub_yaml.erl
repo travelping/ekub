@@ -23,11 +23,11 @@ read(Yaml, Options) ->
             {error, Error#yamerl_parsing_error.text}
     end.
 
-maps_from_list(List = [[H|_]], Options) when is_number(H) ->
-    lists:foldl(fun(Item, Map) -> maps_put(Item, Map, Options) end, #{}, List);
+maps_from_list(Strings = [[H|_]|_], Options) when is_number(H) ->
+    [maps_put(String, #{}, Options) || String <- Strings];
 
-maps_from_list([List = [H|_]], Options) when not is_number(H) ->
-    maps_from_list(List, Options);
+maps_from_list(Lists = [[H|_]|_], Options) when not is_number(H) ->
+    [maps_from_list(List, Options) || List <- Lists, is_list(List)];
 
 maps_from_list(List, Options) ->
     lists:foldl(fun

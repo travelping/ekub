@@ -109,7 +109,7 @@ read_option(_Option, {error, Reason}) -> {error, Reason}.
 
 read_option({kubeconfig, FileName}) ->
     case ?Config:read(FileName) of
-        {ok, Config} -> read_kubeconfig(Config);
+        {ok, [Config|_]} -> read_kubeconfig(Config);
         {error, Reason} -> {error, Reason}
     end;
 
