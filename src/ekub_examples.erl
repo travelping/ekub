@@ -1,6 +1,9 @@
 -module(ekub_examples).
 
 -export([
+    namespace_create/0,
+    namespace_delete/0,
+
     pod_yaml_create/0,
     pod_map_create/0,
 
@@ -13,7 +16,23 @@
     pod_map_delete/0
 ]).
 
+-define(ApiNs, ekub_api_namespace).
 -define(ApiPod, ekub_api_pod).
+
+namespace_create() -> ?ApiNs:create(
+    "
+     apiVersion: v1
+     kind: Namespace
+     metadata:
+       name: ekub-example
+    ",
+    access()
+).
+
+namespace_delete() -> ?ApiNs:delete(
+    "ekub-example", % namespace
+    access()
+).
 
 pod_yaml_create() -> ?ApiPod:create(
     "ekub-example", % namespace
