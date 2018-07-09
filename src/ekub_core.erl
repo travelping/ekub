@@ -15,8 +15,8 @@
     ws_connect/2, ws_connect/3, ws_connect/4, ws_connect/5,
     ws_close/1,
 
-    ws_recv/1,
-    ws_recv_close/1
+    ws_recv/1, ws_recv/2,
+    ws_recv_close/1, ws_recv_close/2
 ]).
 
 -define(Yaml, ekub_yaml).
@@ -158,8 +158,9 @@ ws_request(Resource, Query, Headers, Options, Access) ->
     ws_request(url(Resource, Query, Access), Headers, Options, Access).
 
 ws_request(Url, Headers, Options, Access) ->
-    case ws_connect(Url, Headers, Options, Access) of
-        {ok, Socket} -> ws_recv_close(Socket);
+    {RecvTimeout, FinalOptions} = options_take(recv_timeout, Options, infinity),
+    case ws_connect(Url, Headers, FinalOptions, Access) of
+        {ok, Socket} -> ws_recv_close(Socket, RecvTimeout);
         {error, Reason} -> {error, Reason}
     end.
 
@@ -186,20 +187,22 @@ ws_error_read(Reason) -> Reason.
 
 ws_close(Socket) -> ewsc:close(Socket).
 
-ws_recv(Socket) -> ws_recv(Socket, <<"">>).
+ws_recv(Socket) -> ws_recv(Socket, infinity).
+ws_recv(Socket, Timeout) -> ws_recv(Socket, Timeout, <<"">>).
 
-ws_recv(Socket, Acc) ->
-    case ewsc:recv(Socket) of
+ws_recv(Socket, Timeout, Acc) ->
+    case ewsc:recv(Socket, Timeout) of
         {ok, [close|Messages]} ->
             {ok, binary_to_list(ws_append_messages(Acc, Messages))};
         {ok, Messages} ->
-            ws_recv(Socket, ws_append_messages(Acc, Messages));
+            ws_recv(Socket, Timeout, ws_append_messages(Acc, Messages));
         {error, Reason} ->
             {error, Reason}
     end.
 
-ws_recv_close(Socket) ->
-    Result = ws_recv(Socket),
+ws_recv_close(Socket) -> ws_recv_close(Socket, infinity).
+ws_recv_close(Socket, Timeout) ->
+    Result = ws_recv(Socket, Timeout),
     ws_close(Socket),
     Result.
 
@@ -276,6 +279,12 @@ ssl_option_fun(Access) -> fun
         ClientKey = maps:get(client_key, Access, false),
         ClientKey /= false andalso {true, {key, ClientKey}}
 end.
+
+options_take(Key, Options1, Default) ->
+    case lists:keytake(Key, 1, Options1) of
+        {value, {Key, Value}, Options2} -> {Value, Options2};
+        false -> {Default, Options1}
+    end.
 
 underscore_atom_to_camel_case_string(Atom) when is_atom(Atom) ->
     case string:split(atom_to_list(Atom), "_", all) of
