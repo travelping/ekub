@@ -89,7 +89,7 @@ exec(Namespace, PodName, ContainerName, Command, Timeout, Access) ->
 
     Options = [{recv_timeout, Timeout}],
 
-    ?Core:ws_request(Resource, Query, Options, Access).
+    ?Core:ws_request(Resource, Query, [], Options, Access).
 
 read_log(Namespace, PodName, Access) ->
     read_log(Namespace, PodName, [], Access).
