@@ -27,26 +27,26 @@ namespace_create() -> ?ApiNs:create(
      apiVersion: v1
      kind: Namespace
      metadata:
-       name: ekub-example
+       name: ekub-examples
     ",
     access()
 ).
 
 namespace_delete() -> ?ApiNs:delete(
-    "ekub-example", % namespace
+    "ekub-examples", % namespace
     access()
 ).
 
 pod_create() -> ?ApiPod:create(
-    "ekub-example", % namespace
+    "ekub-examples", % namespace
     "
      apiVersion: v1
      kind: Pod
      metadata:
-       name: ekub-example
+       name: ekub-examples
      spec:
        containers:
-       - name: ekub-example
+       - name: ekub-examples
          image: aialferov/pause:1.0.0
     ",
     %%% map based example
@@ -54,10 +54,10 @@ pod_create() -> ?ApiPod:create(
     % #{apiVersion => <<"v1">>,
     %   kind => <<"Pod">>,
     %   metadata =>
-    %     #{name => <<"ekub-example">>},
+    %     #{name => <<"ekub-examples">>},
     %   spec =>
     %     #{containers => [
-    %       #{name => <<"ekub-example">>,
+    %       #{name => <<"ekub-examples">>,
     %         image => <<"aialferov/pause:1.0.0">>}
     %     ]}}
     %%%
@@ -65,14 +65,14 @@ pod_create() -> ?ApiPod:create(
 ).
 
 pod_patch() -> ?ApiPod:patch(
-    "ekub-example", % namespace
-    "ekub-example", % pod name
+    "ekub-examples", % namespace
+    "ekub-examples", % pod name
     "
      apiVersion: v1
      kind: Patch
      spec:
        containers:
-       - name: ekub-example
+       - name: ekub-examples
          image: aialferov/pause:1.1.0
     ",
     %%% map based example
@@ -81,7 +81,7 @@ pod_patch() -> ?ApiPod:patch(
     %   kind => <<"Patch">>,
     %   spec =>
     %     #{containers => [
-    %       #{name => <<"ekub-example">>,
+    %       #{name => <<"ekub-examples">>,
     %         image => <<"aialferov/pause:1.1.0">>}
     %     ]}},
     %%%
@@ -89,51 +89,51 @@ pod_patch() -> ?ApiPod:patch(
 ).
 
 pod_list() -> ?ApiPod:list(
-    "ekub-example", % namespace
+    "ekub-examples", % namespace
     access()
 ).
 
 pod_exec() -> ?ApiPod:exec(
-    "ekub-example", % namespace
-    "ekub-example", % pod name
-    "ekub-example", % container name
+    "ekub-examples", % namespace
+    "ekub-examples", % pod name
+    "ekub-examples", % container name
     "pause version", % command
     % 10000, % optional timeout in ms
     access()
 ).
 
 pod_delete() -> ?ApiPod:delete(
-    "ekub-example",
-    "ekub-example",
+    "ekub-examples",
+    "ekub-examples",
     access()
 ).
 
 deployment_create() -> ?ApiDeploy:create(
-    "ekub-example", % namespace
+    "ekub-examples", % namespace
     "
      apiVersion: apps/v1beta1
      kind: Deployment
      metadata:
-       name: ekub-example
+       name: ekub-examples
        labels:
-         app: ekub-example
+         app: ekub-examples
      spec:
        replicas: 3
        template:
          metadata:
            labels:
-             app: ekub-example
+             app: ekub-examples
          spec:
            containers:
-           - name: ekub-example
+           - name: ekub-examples
              image: aialferov/pause:1.0.0
     ",
     access()
 ).
 
 deployment_delete() -> ?ApiDeploy:delete(
-    "ekub-example", % namespace
-    "ekub-example", % deployment name
+    "ekub-examples", % namespace
+    "ekub-examples", % deployment name
     [{orphan_dependents, false}],
     access()
 ).
