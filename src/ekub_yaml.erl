@@ -15,6 +15,10 @@ read_file(FileName, Options) ->
     end.
 
 read(Yaml) -> read(Yaml, []).
+
+read({Yaml, Args}, Options) ->
+    read(lists:foldl(fun template/2, Yaml, Args), Options);
+
 read(Yaml, Options) ->
     try yamerl:decode(Yaml) of
         List -> {ok, maps_from_list(List, Options)}
@@ -22,6 +26,9 @@ read(Yaml, Options) ->
         throw:{yamerl_exception, [Error]} ->
             {error, Error#yamerl_parsing_error.text}
     end.
+
+template({ArgName, ArgValue}, Yaml) ->
+    string:replace(Yaml, "{{" ++ ArgName ++ "}}", ArgValue, all).
 
 maps_from_list(Strings = [[H|_]|_], Options) when is_number(H) ->
     [maps_put(String, #{}, Options) || String <- Strings];
