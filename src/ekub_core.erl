@@ -78,7 +78,7 @@ http_stream_request(Method, Url, Headers, Body, Options, Access) ->
     end.
 
 http_request_ref(Method, Url, Headers, Body, Options, Access)
-    when is_list(Body); is_binary(Body)
+    when is_list(Body); is_binary(Body); is_tuple(Body)
 ->
     case ?Yaml:read(Body, [binary]) of
         {ok, [ReadBody|_]} ->
