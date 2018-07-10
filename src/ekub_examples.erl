@@ -134,7 +134,8 @@ deployment_create() -> ?ApiDeploy:create(
 deployment_delete() -> ?ApiDeploy:delete(
     "ekub-examples", % namespace
     "ekub-examples", % deployment name
-    [{orphan_dependents, false}],
+    [{orphan_dependents, false}], % deprecated but still works
+    % [{propagation_policy, "Background"}], % recommended but doesn't work
     access()
 ).
 
