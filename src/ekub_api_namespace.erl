@@ -15,18 +15,23 @@
 -define(ApiNamespaces, "/api/v1/namespaces").
 
 create(Body, Access) ->
-    ?Core:http_request(post, ?ApiNamespaces, [], Body, Access).
+    Resource = ?ApiNamespaces,
+    ?Core:http_request(post, Resource, [], Body, Access).
 
 patch(Namespace, Patch, Access) ->
-    ?Core:http_request(patch, {?ApiNamespace, [Namespace]}, [], Patch, Access).
+    Resource = {?ApiNamespace, [Namespace]},
+    ?Core:http_request(patch, Resource, [], Patch, Access).
 
 delete(Namespace, Access) -> delete(Namespace, [], Access).
 delete(Namespace, Options, Access) ->
-    ?Core:http_request(delete, {?ApiNamespace, [Namespace]}, Options, Access).
+    Resource = {?ApiNamespace, [Namespace]},
+    ?Core:http_request(delete, Resource, Options, Access).
 
 read(Namespace, Access) ->
-    ?Core:http_request({?ApiNamespace, [Namespace]}, Access).
+    Resource = {?ApiNamespace, [Namespace]},
+    ?Core:http_request(Resource, Access).
 
 list(Access) -> list([], Access).
 list(Options, Access) ->
-    ?Core:http_request(?ApiNamespaces, Options, Access).
+    Resource = ?ApiNamespaces,
+    ?Core:http_request(Resource, Options, Access).
