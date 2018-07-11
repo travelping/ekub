@@ -5,7 +5,7 @@
     read/1, read/2,
 
     decode/1,
-    flatten/1,
+
     to_map/1, to_map/2
 ]).
 
@@ -33,22 +33,6 @@ decode(Yaml) ->
     catch
         throw:{yamerl_exception, [Error]} ->
             {error, Error#yamerl_parsing_error.text}
-    end.
-
-flatten(Proplists) ->
-    [lists:reverse(flatten(Proplist, [])) || Proplist <- Proplists].
-
-flatten(Proplist, Flattened) when not is_tuple(Proplist) ->
-    lists:foldl(fun flatten/2, Flattened, Proplist);
-
-flatten({Key, Value = [H|_]}, Flattened) ->
-    case Flattened of
-        [{Keys}|Rest] ->
-            if is_number(H) -> [{lists:reverse([Key|Keys]), Value}|Rest];
-            not is_number(H) -> flatten(Value, [{[Key|Keys]}|Rest]) end;
-        Flattened ->
-            if is_number(H) -> [{Key, Value}|Flattened];
-            not is_number(H) -> flatten(Value, [{[Key]}|Flattened]) end
     end.
 
 to_map(Proplists) -> to_map(Proplists, []).
