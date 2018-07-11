@@ -4,6 +4,7 @@
     read_file/1, read_file/2,
     read/1, read/2,
 
+    build/2,
     decode/1,
 
     to_map/1, to_map/2
@@ -20,11 +21,20 @@ read_file(FileName, Options) ->
 
 read(Yaml) -> read(Yaml, []).
 
+read({YamlTemplate, Values}, Options) ->
+    read(build(YamlTemplate, Values), Options);
+
 read(Yaml, Options) ->
     case decode(Yaml) of
         {ok, Proplists} -> {ok, to_map(Proplists, Options)};
         {error, Reason} -> {error, Reason}
     end.
+
+build(YamlTemplate, Values) ->
+    lists:flatten(lists:foldl(fun({Key, Value}, Yaml) ->
+        Name = "{{ " ++ Key ++ " }}",
+        string:replace(Yaml, Name, Value, all)
+    end, YamlTemplate, Values)).
 
 decode(Yaml) ->
     try yamerl:decode(Yaml) of
