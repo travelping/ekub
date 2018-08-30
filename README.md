@@ -1,6 +1,6 @@
 # Ekub
 
-An Erlang based client library for work with [Kubernetes] via [Kubernetes API].
+An Erlang client library to work with [Kubernetes] via [Kubernetes API].
 
 Under construction.
 Documentation coming soon.
