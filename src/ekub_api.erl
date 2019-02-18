@@ -3,6 +3,8 @@
 -export([
     endpoint/3, endpoint/4, endpoint/5, endpoint/6,
     group_version/2, group_version/3,
+    resource_type/2, resource_type/3,
+
     load/1
 ]).
 
@@ -23,25 +25,26 @@ endpoint(Group, Version, ResourceType, Namespace, Name, SubResource) ->
     if Group == "" -> "/api/" ++ Version;
        Group /= "" -> "/apis/" ++ Group ++ [$/|Version] end ++
     if Namespace == "" -> "";
-       Namespace /= "" -> "/namespaces/" ++ Namespace end ++
-    [$/|ResourceType] ++ "s" ++
+       Namespace /= "" -> "/namespaces/" ++ to_list(Namespace) end ++
+    [$/|to_list(ResourceType)] ++
     if Name == "" -> "";
-       Name /= "" -> [$/|Name] end ++
+       Name /= "" -> [$/|to_list(Name)] end ++
     if SubResource == "" -> "";
-       SubResource /= "" -> [$/|SubResource] end.
+       SubResource /= "" -> [$/|to_list(SubResource)] end.
 
-group_version(ResourceType, Api) -> group_version(ResourceType, "", Api).
-group_version(ResourceType, SubResource, Api) ->
-    Alias = if SubResource == "" -> ResourceType;
-               SubResource /= "" -> ResourceType ++ [$/|SubResource] end,
-
-    Aliases = maps:get(aliases, Api, #{}),
-    GroupVersions = maps:get(group_versions, Api, #{}),
-
-    case maps:find(Alias, Aliases) of
-        {ok, Kind} -> maps:find(Kind, GroupVersions);
+group_version(ResourceRef, Api) -> group_version(ResourceRef, "", Api).
+group_version(ResourceRef, SubResource, Api) ->
+    Alias = {to_list(ResourceRef), to_list(SubResource)},
+    case maps:find(Alias, maps:get(aliases, Api, #{})) of
+        {ok, ResourceType} ->
+            maps:find(ResourceType, maps:get(group_versions, Api, #{}));
         error -> error
     end.
+
+resource_type(ResourceRef, Api) -> resource_type(ResourceRef, "", Api).
+resource_type(ResourceRef, SubResource, Api) ->
+    Alias = {to_list(ResourceRef), to_list(SubResource)},
+    maps:find(Alias, maps:get(aliases, Api, #{})).
 
 load(Access) ->
     case load_endpoints(Access) of
@@ -66,20 +69,29 @@ load_api(Endpoint, InitialApi, Access) ->
 
 build_api_fun(Endpoint) -> fun(ApiResource, Api) ->
     Kind = binary_to_list(maps:get(kind, ApiResource)),
-    GroupVersions = maps:get(group_versions, Api, #{}),
-    NewGroupVersions = maps:put(Kind, group_version(Endpoint), GroupVersions),
+    Name = binary_to_list(maps:get(name, ApiResource)),
+    PluralName = binary_to_list(maps:get(pluralName, ApiResource, <<"">>)),
+    SingularName = binary_to_list(maps:get(singularName, ApiResource, <<"">>)),
+    {ResourceType, SubResource} = resource_type_sub_resource(Name),
 
-    Names = lists:filter(fun(X) -> X /= "" end, [
-        binary_to_list(maps:get(name, ApiResource)),
-        binary_to_list(maps:get(pluralName, ApiResource, <<"">>)),
-        binary_to_list(maps:get(singularName, ApiResource, <<"">>))
+    GroupVersions = maps:get(group_versions, Api, #{}),
+    GroupVersion = group_version(Endpoint),
+    NewGroupVersions = maps:put(ResourceType, GroupVersion, GroupVersions),
+
+    Names = lists:filter(fun({X, _}) -> X /= "" end, [
+        {Kind, SubResource},
+        {string:lowercase(Kind), SubResource},
+        {PluralName, SubResource},
+        {SingularName, SubResource},
+        {ResourceType, SubResource}
         |
-        [binary_to_list(ShortName) ||
+        [{binary_to_list(ShortName), SubResource} ||
          ShortName <- maps:get(shortNames, ApiResource, [])]
     ]),
 
-    AddAliasFun = fun(Alias, Aliases) -> maps:put(Alias, Kind, Aliases) end,
-    NewAliases = lists:foldl(AddAliasFun, maps:get(aliases, Api, #{}), Names),
+    NewAliases = lists:foldl(fun(Alias, Aliases) ->
+        maps:put(Alias, ResourceType, Aliases)
+    end, maps:get(aliases, Api, #{}), Names),
 
     maps:put(aliases, NewAliases,
     maps:put(group_versions, NewGroupVersions, Api))
@@ -91,6 +103,12 @@ group_version(Endpoint) ->
         [Group, Version] -> {Group, Version}
     end.
 
+resource_type_sub_resource(Name) ->
+    case string:split(Name, "/") of
+        [ResourceType, SubResource] -> {ResourceType, SubResource};
+        [ResourceType] -> {ResourceType, ""}
+    end.
+
 load_endpoints(Access) ->
     case ?Core:http_request("/apis", Access) of
         {ok, Apis} -> {ok, [?CoreEndpoint|[
@@ -100,3 +118,7 @@ load_endpoints(Access) ->
         ]]};
         {error, Reason} -> {error, Reason}
     end.
+
+to_list(A) when is_atom(A) -> atom_to_list(A);
+to_list(B) when is_binary(B) -> binary_to_list(B);
+to_list(L) -> L.
