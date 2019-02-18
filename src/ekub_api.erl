@@ -1,205 +1,102 @@
 -module(ekub_api).
 
--export([endpoint/2]).
+-export([
+    endpoint/3, endpoint/4, endpoint/5, endpoint/6,
+    group_version/2, group_version/3,
+    load/1
+]).
 
--type action() :: create | create_eviction | patch | replace |
-                  delete | delete_collection |
-                  read | list | list_all_ns |
-                  watch | watch_list | watch_list_all_ns |
-                  patch_status | read_status | replace_status |
-                  exec | read_log.
+-define(Core, ekub_core).
 
--type object() :: cronjob | daemonset | deployment | job | pod |
-                  replicaset | replicationcontroller | statefulset |
-                  endpoint | ingress | service |
-                  configmap | secret | persistentvolumeclaim |
-                  storageclass | volumeattachment.
+-define(CoreEndpoint, "/api/v1").
 
--type endpoint() :: HttpPath :: string().
+endpoint(Group, Version, ResourceType) ->
+    endpoint(Group, Version, ResourceType, "", "", "").
 
--spec endpoint(Action :: action(), Object :: object()) ->
-    Endpoint :: endpoint().
+endpoint(Group, Version, ResourceType, Namespace) ->
+    endpoint(Group, Version, ResourceType, Namespace, "", "").
 
-endpoint(Action, Object) -> case Object of
-    cronjob -> case Action of
-        create -> "/apis/batch/v1beta1/namespaces/~s/cronjobs";
-        patch -> "/apis/batch/v1beta1/namespaces/~s/cronjobs/~s";
-        replace -> "/apis/batch/v1beta1/namespaces/~s/cronjobs/~s";
-        delete -> "/apis/batch/v1beta1/namespaces/~s/cronjobs/~s";
-        delete_collection -> "/apis/batch/v1beta1/namespaces/~s/cronjobs";
+endpoint(Group, Version, ResourceType, Namespace, Name) ->
+    endpoint(Group, Version, ResourceType, Namespace, Name, "").
 
-        read -> "/apis/batch/v1beta1/namespaces/~s/cronjobs/~s";
-        list -> "/apis/batch/v1beta1/namespaces/~s/cronjobs";
-        list_all_ns -> "/apis/batch/v1beta1/cronjobs";
+endpoint(Group, Version, ResourceType, Namespace, Name, SubResource) ->
+    if Group == "" -> "/api/" ++ Version;
+       Group /= "" -> "/apis/" ++ Group ++ [$/|Version] end ++
+    if Namespace == "" -> "";
+       Namespace /= "" -> "/namespaces/" ++ Namespace end ++
+    [$/|ResourceType] ++ "s" ++
+    if Name == "" -> "";
+       Name /= "" -> [$/|Name] end ++
+    if SubResource == "" -> "";
+       SubResource /= "" -> [$/|SubResource] end.
 
-        watch -> "/apis/batch/v1beta1/watch/namespaces/~s/cronjobs/~s";
-        watch_list -> "/apis/batch/v1beta1/watch/namespaces/~s/cronjobs";
-        watch_list_all_ns -> "/apis/batch/v1beta1/watch/cronjobs";
+group_version(ResourceType, Api) -> group_version(ResourceType, "", Api).
+group_version(ResourceType, SubResource, Api) ->
+    Alias = if SubResource == "" -> ResourceType;
+               SubResource /= "" -> ResourceType ++ [$/|SubResource] end,
 
-        patch_status -> "/apis/batch/v1beta1/namespaces/~s/cronjobs/~s/status";
-        read_status -> "/apis/batch/v1beta1/namespaces/~s/cronjobs/~s/status";
-        replace_status -> "/apis/batch/v1beta1/namespaces/~s/cronjobs/~s/status"
-    end;
-    daemonset -> case Action of
-        create -> "/apis/apps/v1/namespaces/~s/daemonsets";
-        patch -> "/apis/apps/v1/namespaces/~s/daemonsets/~s";
-        replace -> "/apis/apps/v1/namespaces/~s/daemonsets/~s";
-        delete -> "/apis/apps/v1/namespaces/~s/daemonsets/~s";
-        delete_collection -> "/apis/apps/v1/namespaces/~s/daemonsets";
+    Aliases = maps:get(aliases, Api, #{}),
+    GroupVersions = maps:get(group_versions, Api, #{}),
 
-        read -> "/apis/apps/v1/namespaces/~s/daemonsets/~s";
-        list -> "/apis/apps/v1/namespaces/~s/daemonsets";
-        list_all_ns -> "/apis/apps/v1/daemonsets";
+    case maps:find(Alias, Aliases) of
+        {ok, Kind} -> maps:find(Kind, GroupVersions);
+        error -> error
+    end.
 
-        watch -> "/apis/apps/v1/watch/namespaces/~s/daemonsets/~s";
-        watch_list -> "/apis/apps/v1/watch/namespaces/~s/daemonsets";
-        watch_list_all_ns -> "/apis/apps/v1/watch/daemonsets";
+load(Access) ->
+    case load_endpoints(Access) of
+        {ok, Endpoints} -> load_api(Endpoints, Access);
+        {error, Reason} -> {error, Reason}
+    end.
 
-        patch_status -> "/apis/apps/v1/namespaces/~s/daemonsets/~s/status";
-        read_status -> "/apis/apps/v1/namespaces/~s/daemonsets/~s/status";
-        replace_status -> "/apis/apps/v1/namespaces/~s/daemonsets/~s/status"
-    end;
-    deployment -> case Action of
-        create -> "/apis/apps/v1/namespaces/~s/deployments";
-        patch -> "/apis/apps/v1/namespaces/~s/deployments/~s";
-        replace -> "/apis/apps/v1/namespaces/~s/deployments/~s";
-        delete -> "/apis/apps/v1/namespaces/~s/deployments/~s";
-        delete_collection -> "/apis/apps/v1/namespaces/~s/deployments";
+load_api(Endpoints, Access) ->
+    lists:foldl(fun
+        (Endpoint, {ok, Api}) -> load_api(Endpoint, Api, Access);
+        (_Endpoint, {error, Reason}) -> {error, Reason}
+    end, {ok, #{}}, Endpoints).
 
-        read -> "/apis/apps/v1/namespaces/~s/deployments/~s";
-        list -> "/apis/apps/v1/namespaces/~s/deployments";
-        list_all_ns -> "/apis/apps/v1/deployments";
+load_api(Endpoint, InitialApi, Access) ->
+    case ?Core:http_request(Endpoint, Access) of
+        {ok, ApiResourcesObject} ->
+            ApiResources = maps:get(resources, ApiResourcesObject),
+            BuildApiFun = build_api_fun(Endpoint),
+            {ok, lists:foldl(BuildApiFun, InitialApi, ApiResources)};
+        {error, Reason} -> {error, Reason}
+    end.
 
-        watch -> "/apis/apps/v1/watch/namespaces/~s/deployments/~s";
-        watch_list -> "/apis/apps/v1/watch/namespaces/~s/deployments";
-        watch_list_all_ns -> "/apis/apps/v1/watch/deployments";
+build_api_fun(Endpoint) -> fun(ApiResource, Api) ->
+    Kind = binary_to_list(maps:get(kind, ApiResource)),
+    GroupVersions = maps:get(group_versions, Api, #{}),
+    NewGroupVersions = maps:put(Kind, group_version(Endpoint), GroupVersions),
 
-        patch_status -> "/apis/apps/v1/namespaces/~s/deployments/~s/status";
-        read_status -> "/apis/apps/v1/namespaces/~s/deployments/~s/status";
-        replace_status -> "/apis/apps/v1/namespaces/~s/deployments/~s/status";
+    Names = lists:filter(fun(X) -> X /= "" end, [
+        binary_to_list(maps:get(name, ApiResource)),
+        binary_to_list(maps:get(pluralName, ApiResource, <<"">>)),
+        binary_to_list(maps:get(singularName, ApiResource, <<"">>))
+        |
+        [binary_to_list(ShortName) ||
+         ShortName <- maps:get(shortNames, ApiResource, [])]
+    ]),
 
-        read_scale -> "/apis/apps/v1/namespaces/~s/deployments/~s/scale";
-        replace_scale -> "/apis/apps/v1/namespaces/~s/deployments/~s/scale";
-        patch_scale -> "/apis/apps/v1/namespaces/~s/deployments/~s/scale"
-    end;
-    jobs -> case Action of
-        create -> "/apis/batch/v1/namespaces/~s/jobs";
-        patch -> "/apis/batch/v1/namespaces/~s/jobs/~s";
-        replace -> "/apis/batch/v1/namespaces/~s/jobs/~s";
-        delete -> "/apis/batch/v1/namespaces/~s/jobs/~s";
-        delete_collection -> "/apis/batch/v1/namespaces/~s/jobs";
+    AddAliasFun = fun(Alias, Aliases) -> maps:put(Alias, Kind, Aliases) end,
+    NewAliases = lists:foldl(AddAliasFun, maps:get(aliases, Api, #{}), Names),
 
-        read -> "/apis/batch/v1/namespaces/~s/jobs/~s";
-        list -> "/apis/batch/v1/namespaces/~s/jobs";
-        list_all_ns -> "/apis/batch/v1/jobs";
-
-        watch -> "/apis/batch/v1/watch/namespaces/~s/jobs/~s";
-        watch_list -> "/apis/batch/v1/watch/namespaces/~s/jobs";
-        watch_list_all_ns -> "/apis/batch/v1/watch/jobs";
-
-        patch_status -> "/apis/batch/v1/namespaces/~s/jobs/~s/status";
-        read_status -> "/apis/batch/v1/namespaces/~s/jobs/~s/status";
-        replace_status -> "/apis/batch/v1/namespaces/~s/jobs/~s/status"
-    end;
-    pod -> case Action of
-        create -> "/api/v1/namespaces/~s/pods/~s";
-        create_eviction -> "/api/v1/namespaces/~s/pods/~s/eviction";
-        patch -> "/api/v1/namespaces/~s/pods/~s";
-        replace -> "/api/v1/namespaces/~s/pods/~s";
-        delete -> "/api/v1/namespaces/~s/pods/~s";
-        delete_collection -> "/api/v1/namespaces/~s/pods";
-
-        read -> "/api/v1/namespaces/~s/pods/~s";
-        list -> "/api/v1/namespaces/~s/pods";
-        list_all_ns -> "/api/v1/pods";
-
-        watch -> "/api/v1/watch/namespaces/~s/pods/~s";
-        watch_list -> "/api/v1/watch/namespaces/~s/pods";
-        watch_list_all_ns -> "/api/v1/watch/pods";
-
-        patch_status -> "/api/v1/namespaces/~s/pods/~s/status";
-        read_status -> "/api/v1/namespaces/~s/pods/~s/status";
-        replace_status -> "/api/v1/namespaces/~s/pods/~s/status";
-
-        read_log -> "/api/v1/namespaces/~s/pods/~s/log";
-        exec ->  "/api/v1/namespaces/~s/pods/~s/exec"
-    end;
-    statefulset -> case Action of
-        create -> "/apis/apps/v1/namespaces/~s/statefulsets";
-        patch -> "/apis/apps/v1/namespaces/~s/statefulsets/~s";
-        replace -> "/apis/apps/v1/namespaces/~s/statefulsets/~s";
-        delete -> "/apis/apps/v1/namespaces/~s/statefulsets/~s";
-        delete_collection -> "/apis/apps/v1/namespaces/~s/statefulsets";
-
-        read -> "/apis/apps/v1/namespaces/~s/statefulsets/~s";
-        list -> "/apis/apps/v1/namespaces/~s/statefulsets";
-        list_all_ns -> "/apis/apps/v1/statefulsets";
-
-        watch -> "/apis/apps/v1/watch/namespaces/~s/statefulsets/~s";
-        watch_list -> "/apis/apps/v1/watch/namespaces/~s/statefulsets";
-        watch_list_all_ns -> "/apis/apps/v1/watch/statefulsets";
-
-        patch_status -> "/apis/apps/v1/namespaces/~s/statefulsets/~s/status";
-        read_status -> "/apis/apps/v1/namespaces/~s/statefulsets/~s/status";
-        replace_status -> "/apis/apps/v1/namespaces/~s/statefulsets/~s/status";
-
-        read_scale -> "/apis/apps/v1/namespaces/~s/statefulsets/~s/scale";
-        replace_scale -> "/apis/apps/v1/namespaces/~s/statefulsets/~s/scale";
-        patch_scale -> "/apis/apps/v1/namespaces/~s/statefulsets/~s/scale"
-    end;
-    endpoint -> case Action of
-        create -> "/apis/v1/namespaces/~s/endpoints";
-        patch -> "/apis/v1/namespaces/~s/endpoints/~s";
-        replace -> "/apis/v1/namespaces/~s/endpoints/~s";
-        delete -> "/apis/v1/namespaces/~s/endpoints/~s";
-        delete_collection -> "/apis/v1/namespaces/~s/endpoints";
-
-        read -> "/apis/v1/namespaces/~s/endpoints/~s";
-        list -> "/apis/v1/namespaces/~s/endpoints";
-        list_all_ns -> "/apis/v1/endpoints";
-
-        watch -> "/apis/v1/watch/namespaces/~s/endpoints/~s";
-        watch_list -> "/apis/v1/watch/namespaces/~s/endpoints";
-        watch_list_all_ns -> "/apis/v1/watch/endpoints"
-    end;
-    ingress -> case Action of
-        create -> "/apis/extensions/v1beta1/namespaces/~s/ingresses";
-        patch -> "/apis/extensions/v1beta1/namespaces/~s/ingresses/~s";
-        replace -> "/apis/extensions/v1beta1/namespaces/~s/ingresses/~s";
-        delete -> "/apis/extensions/v1beta1/namespaces/~s/ingresses/~s";
-        delete_collection -> "/apis/extensions/v1beta1/namespaces/~s/ingresses";
-
-        read -> "/apis/extensions/v1beta1/namespaces/~s/ingresses/~s";
-        list -> "/apis/extensions/v1beta1/namespaces/~s/ingresses";
-        list_all_ns -> "/apis/extensions/v1beta1/ingresses";
-
-        watch -> "/apis/extensions/v1beta1/watch/namespaces/~s/ingresses/~s";
-        watch_list -> "/apis/extensions/v1beta1/watch/namespaces/~s/ingresses";
-        watch_list_all_ns -> "/apis/extensions/v1beta1/watch/ingresses";
-
-        patch_status ->
-            "/apis/extensions/v1beta1/namespaces/~s/ingresses/~s/status";
-        read_status ->
-            "/apis/extensions/v1beta1/namespaces/~s/ingresses/~s/status";
-        replace_status ->
-            "/apis/extensions/v1beta1/namespaces/~s/ingresses/~s/status"
-    end;
-    service -> case Action of
-        create -> "/api/v1/namespaces/~s/services";
-        patch -> "/api/v1/namespaces/~s/services/~s";
-        replace -> "/api/v1/namespaces/~s/services/~s";
-        delete -> "/api/v1/namespaces/~s/services/~s";
-
-        read -> "/api/v1/namespaces/~s/services/~s";
-        list -> "/api/v1/namespaces/~s/services";
-        list_all_ns -> "/api/v1/services";
-
-        watch -> "/api/v1/watch/namespaces/~s/services/~s";
-        watch_list -> "/api/v1/watch/namespaces/~s/services";
-        watch_list_all_ns -> "/api/v1/watch/services";
-
-        patch_status -> "/api/v1/namespaces/~s/services/~s/status";
-        read_status -> "/api/v1/namespaces/~s/services/~s/status";
-        replace_status -> "/api/v1/namespaces/~s/services/~s/status"
-    end
+    maps:put(aliases, NewAliases,
+    maps:put(group_versions, NewGroupVersions, Api))
 end.
+
+group_version(Endpoint) ->
+    case tl(string:split(tl(Endpoint), "/", all)) of
+        [Version] -> {"", Version};
+        [Group, Version] -> {Group, Version}
+    end.
+
+load_endpoints(Access) ->
+    case ?Core:http_request("/apis", Access) of
+        {ok, Apis} -> {ok, [?CoreEndpoint|[
+            binary_to_list(<<"/apis/", GroupVersion/binary>>)
+            || #{preferredVersion := #{groupVersion := GroupVersion}}
+            <- maps:get(groups, Apis)
+        ]]};
+        {error, Reason} -> {error, Reason}
+    end.
