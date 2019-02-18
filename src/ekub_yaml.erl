@@ -60,7 +60,9 @@ to_map(Proplist = [Prop|_], Options) when is_tuple(Prop) ->
     end, #{}, Proplist);
 
 to_map(Strings = [[H|_]|_], Options) when is_number(H) ->
-    [maps_put(String, #{}, Options) || String <- Strings].
+    [maps_put(String, #{}, Options) || String <- Strings];
+
+to_map([], _Options) -> [].
 
 maps_put(Key, Map, Options) ->
     maps_put(Key, null, Map, Options).

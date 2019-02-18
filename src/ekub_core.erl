@@ -81,6 +81,8 @@ http_request_ref(Method, Url, Headers, Body, Options, Access)
     when is_list(Body); is_binary(Body); is_tuple(Body)
 ->
     case ?Yaml:read(Body, [binary]) of
+        {ok, []} ->
+            http_request_ref(Method, Url, Headers, #{}, Options, Access);
         {ok, [ReadBody|_]} ->
             http_request_ref(Method, Url, Headers, ReadBody, Options, Access);
         {error, Reason} ->
