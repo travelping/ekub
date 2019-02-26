@@ -1,134 +1,85 @@
 -module(ekub).
 
 -export([
-    create/4,
-    create_eviction/5,
-    patch/5,
-    replace/5,
+    create/2, create/3, create/4,
+
     delete/4, delete/5,
     delete_collection/3, delete_collection/4,
 
-    read/4, read/5,
-    list/3, list/4,
-    list_all_ns/2, list_all_ns/3,
+    patch/5,
+    replace/3,
 
+    read/4, read/6,
     watch/4, watch/5, watch/1,
-    watch_list/3, watch_list/4,
-    watch_list_all_ns/2, watch_list_all_ns/3,
 
-    patch_status/5,
-    read_status/4,
-    replace_status/5,
+    logs/4,
+    exec/5, exec/6,
 
-    % see deployments
-    %Read Scale
-    %Replace Scale
-    %Patch Scale
-
-    read_log/3, read_log/4,
-
-    exec/5, exec/6
+    endpoint/5
 ]).
 
 -define(Api, ekub_api).
 -define(Core, ekub_core).
+-define(Yaml, ekub_yaml).
 
-create(Object, Namespace, Body, Access) ->
-    Resource = {?Api:endpoint(create, Object), [Namespace]},
-    ?Core:http_request(post, Resource, [], Body, Access).
+create(Resource, {Api, Access}) ->
+    create(Resource, "", "", {Api, Access}).
 
-create_eviction(Object, Namespace, Name, Body, Access) ->
-    Resource = {?Api:endpoint(create_eviction, Object), [Namespace, Name]},
-    ?Core:http_request(post, Resource, [], Body, Access).
+create(Resource, Namespace, {Api, Access}) ->
+    create(Resource, Namespace, "", {Api, Access}).
 
-patch(Object, Namespace, Name, Body, Access) ->
-    Resource = {?Api:endpoint(patch, Object), [Namespace, Name]},
-    ?Core:http_request(patch, Resource, [], Body, Access).
+create(Resource, Namespace, SubResource, {Api, Access}) ->
+    Endpoint = endpoint(Resource, Namespace, false, SubResource, Api),
+    ?Core:http_request(post, Endpoint, [], Resource, Access).
 
-replace(Object, Namespace, Name, Body, Access) ->
-    Resource = {?Api:endpoint(replace, Object), [Namespace, Name]},
-    ?Core:http_request(put, Resource, [], Body, Access).
+delete(ResourceType, Namespace, Name, {Api, Access}) ->
+    delete(ResourceType, Namespace, Name, [], {Api, Access}).
 
-delete(Object, Namespace, Name, Access) ->
-    delete(Object, Namespace, Name, [], Access).
+delete(ResourceType, Namespace, Name, Query, {Api, Access}) ->
+    Endpoint = endpoint(ResourceType, Namespace, Name, "", Api),
+    ?Core:http_request(delete, Endpoint, Query, Access).
 
-delete(Object, Namespace, Name, Query, Access) ->
-    Resource = {?Api:endpoint(delete, Object), [Namespace, Name]},
-    ?Core:http_request(delete, Resource, Query, Access).
+delete_collection(ResourceType, Namespace, {Api, Access}) ->
+    delete_collection(ResourceType, Namespace, [], {Api, Access}).
 
-delete_collection(Object, Namespace, Access) ->
-    delete_collection(Object, Namespace, [], Access).
+delete_collection(ResourceType, Namespace, Query, {Api, Access}) ->
+    Endpoint = endpoint(ResourceType, Namespace, "", "", Api),
+    ?Core:http_request(delete, Endpoint, Query, Access).
 
-delete_collection(Object, Namespace, Query, Access) ->
-    Resource = {?Api:endpoint(delete_collection, Object), [Namespace]},
-    ?Core:http_request(delete, Resource, Query, Access).
+patch(ResourceType, Namespace, Name, Patch, {Api, Access}) ->
+    Endpoint = endpoint(ResourceType, Namespace, Name, "", Api),
+    ?Core:http_request(patch, Endpoint, [], Patch, Access).
 
-read(Object, Namespace, Name, Access) ->
-    read(Object, Namespace, Name, [], Access).
+replace(Resource, Namespace, {Api, Access}) ->
+    Endpoint = endpoint(Resource, Namespace, "", "", Api),
+    ?Core:http_request(put, Endpoint, [], Resource, Access).
 
-read(Object, Namespace, Name, Query, Access) ->
-    Resource = {?Api:endpoint(read, Object), [Namespace, Name]},
-    ?Core:http_request(Resource, Query, Access).
+read(ResourceType, Namespace, Name, {Api, Access}) ->
+    read(ResourceType, Namespace, Name, [], "", {Api, Access}).
 
-list(Object, Namespace, Access) -> list(Object, Namespace, [], Access).
-list(Object, Namespace, Query, Access) ->
-    Resource = {?Api:endpoint(list, Object), [Namespace]},
-    ?Core:http_request(Resource, Query, Access).
+read(ResourceType, Namespace, Name, Query, SubResource, {Api, Access}) ->
+    Endpoint = endpoint(ResourceType, Namespace, Name, SubResource, Api),
+    ?Core:http_request(Endpoint, Query, Access).
 
-list_all_ns(Object, Access) ->
-    list_all_ns(Object, [], Access).
+watch(ResourceType, Namespace, Name, {Api, Access}) ->
+    watch(ResourceType, Namespace, Name, [], {Api, Access}).
 
-list_all_ns(Object, Query, Access) ->
-    Resource = ?Api:endpoint({list_all_ns, Object}),
-    ?Core:http_request(Resource, Query, Access).
-
-watch(Object, Namespace, Name, Access) ->
-    watch(Object, Namespace, Name, [], Access).
-
-watch(Object, Namespace, Name, Query, Access) ->
-    Resource = {?Api:endpoint(watch, Object), [Namespace, Name]},
-    ?Core:http_stream_request(Resource, Query, Access).
-
-watch_list(Object, Namespace, Access) ->
-    watch_list(Object, Namespace, [], Access).
-
-watch_list(Object, Namespace, Query, Access) ->
-    Resource = {?Api:endpoint(watch_list, Object), [Namespace]},
-    ?Core:http_stream_request(Resource, Query, Access).
-
-watch_list_all_ns(Object, Access) ->
-    watch_list_all_ns(Object, [], Access).
-
-watch_list_all_ns(Object, Query, Access) ->
-    Resource = {?Api:endpoint(watch_list_all_ns, Object)},
-    ?Core:http_stream_request(Resource, Query, Access).
+watch(ResourceType, Namespace, Name, Query, {Api, Access}) ->
+    Endpoint = endpoint(ResourceType, Namespace, Name, "", Api),
+    ?Core:http_stream_request(Endpoint, [{watch, true}|Query], Access).
 
 watch(Ref) -> ?Core:http_stream_read(Ref).
 
-patch_status(Object, Namespace, Name, Body, Access) ->
-    Resource = {?Api:endpoint(patch_status, Object), [Namespace, Name]},
-    ?Core:http_request(patch, Resource, [], Body, Access).
+logs(Namespace, PodName, Query, {Api, Access}) ->
+    Endpoint = endpoint(pods, Namespace, PodName, log, Api),
+    ?Core:http_request(Endpoint, Query, Access).
 
-read_status(Object, Namespace, Name, Access) ->
-    Resource = {?Api:endpoint(read_status, Object), [Namespace, Name]},
-    ?Core:http_request(Resource, [], Access).
+exec(Namespace, PodName, ContainerName, Command, {Api, Access}) ->
+    exec(Namespace, PodName, ContainerName, Command, infinity, {Api, Access}).
 
-replace_status(Object, Namespace, Name, Body, Access) ->
-    Resource = {?Api:endpoint(replace_status, Object), [Namespace, Name]},
-    ?Core:http_request(put, Resource, [], Body, Access).
-
-read_log(Namespace, PodName, Access) ->
-    read_log(Namespace, PodName, [], Access).
-
-read_log(Namespace, PodName, Query, Access) ->
-    Resource = {?Api:endpoint(read_log, pod), [Namespace, PodName]},
-    ?Core:http_request(Resource, Query, Access).
-
-exec(Namespace, PodName, ContainerName, Command, Access) ->
-    exec(Namespace, PodName, ContainerName, Command, infinity, Access).
-
-exec(Namespace, PodName, ContainerName, Command, Timeout, Access) ->
-    Resource = {?Api:endpoint(exec, pod), [Namespace, PodName]},
+exec(Namespace, PodName, ContainerName, Command, Timeout, {Api, Access}) ->
+    {ok, {Group, Version}} = ?Api:group_version(pods, exec, Api),
+    Endpoint = ?Api:endpoint(Group, Version, pods, Namespace, PodName, exec),
 
     Query = [{"stdout", "true"},
              {"stderr", "true"},
@@ -137,4 +88,26 @@ exec(Namespace, PodName, ContainerName, Command, Timeout, Access) ->
 
     Options = [{recv_timeout, Timeout}],
 
-    ?Core:ws_request(Resource, Query, [], Options, Access).
+    ?Core:ws_request(Endpoint, Query, [], Options, Access).
+
+endpoint(Resource, Namespace, Name, SubResource, Api) when is_map(Resource) ->
+    Kind = maps:get(<<"kind">>, Resource),
+    Metadata = maps:get(<<"metadata">>, Resource),
+
+    FinalNamespace = if Namespace == false -> "";
+                        Namespace /= false ->
+                            maps:get(<<"namespace">>, Metadata, Namespace) end,
+
+    FinalName = if Name == false -> "";
+                   Name /= false -> maps:get(<<"name">>, Metadata, Name) end,
+
+    {ok, {Group, Version}} = ?Api:group_version(Kind, SubResource, Api),
+    {ok, ResourceType} = ?Api:resource_type(Kind, SubResource, Api),
+
+    ?Api:endpoint(Group, Version, ResourceType,
+                  FinalNamespace, FinalName, SubResource);
+
+endpoint(ResourceAlias, Namespace, Name, SubResource, Api) ->
+    {ok, ResourceType} = ?Api:resource_type(ResourceAlias, SubResource, Api),
+    {ok, {Group, Version}} = ?Api:group_version(ResourceType, SubResource, Api),
+    ?Api:endpoint(Group, Version, ResourceType, Namespace, Name, SubResource).

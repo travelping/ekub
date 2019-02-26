@@ -2,6 +2,7 @@
 
 -export([
     endpoint/3, endpoint/4, endpoint/5, endpoint/6,
+
     group_version/2, group_version/3,
     resource_type/2, resource_type/3,
 
