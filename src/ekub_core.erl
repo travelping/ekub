@@ -39,10 +39,10 @@ http_request(Endpoint, Access) ->
     http_request(Endpoint, [], Access).
 
 http_request(Endpoint, Query, Access) ->
-    http_request(get, Endpoint, Query, [], false, [], Access).
+    http_request(get, Endpoint, Query, [], <<>>, [], Access).
 
 http_request(Method, Endpoint, Query, Access) ->
-    http_request(Method, Endpoint, Query, [], false, [], Access).
+    http_request(Method, Endpoint, Query, [], <<>>, [], Access).
 
 http_request(Method, Endpoint, Query, Body, Access) ->
     http_request(Method, Endpoint, Query, [], Body, [], Access).
@@ -162,8 +162,9 @@ ws_connect(Endpoint, Query, Headers, Options, Access) ->
     ws_connect(url(Endpoint, Query, Access), Headers, Options, Access).
 
 ws_connect(Url, Headers, Options, Access) ->
-    case ewsc:connect(Url, headers(Headers, Access),
-                           ws_options(Options, Access))
+    case ewsc:connect(binary_to_list(Url),
+                      headers(Headers, Access),
+                      ws_options(Options, Access))
     of
         {ok, Result} -> {ok, Result};
         {error, Reason} -> {error, ws_error_read(Reason)}
@@ -181,7 +182,7 @@ ws_recv(Socket, Timeout) -> ws_recv(Socket, Timeout, <<"">>).
 ws_recv(Socket, Timeout, Acc) ->
     case ewsc:recv(Socket, Timeout) of
         {ok, [close|Messages]} ->
-            {ok, binary_to_list(ws_append_messages(Acc, Messages))};
+            {ok, ws_append_messages(Acc, Messages)};
         {ok, Messages} ->
             ws_recv(Socket, Timeout, ws_append_messages(Acc, Messages));
         {error, Reason} ->
@@ -206,15 +207,17 @@ url({Path, Args}, Query, Access) ->
     url(endpoint(Path, Args), Query, Access);
 
 url(Endpoint, Query, Access) ->
-    maps:get(server, Access, "") ++ Endpoint ++ url_query(Query).
+    iolist_to_binary([maps:get(server, Access, ""),
+                      Endpoint, url_query(Query)]).
 
 url_query([]) -> "";
 url_query(Query) ->
-    [$?|lists:flatten(lists:join($&, lists:map(fun url_query_param/1, Query)))].
+    QueryParams = lists:map(fun url_query_param/1, Query),
+    iolist_to_binary([$?|lists:join($&, QueryParams)]).
 
 url_query_param({Key, Value}) ->
-    http_uri:encode(underscore_atom_to_camel_case_string(Key)) ++
-    [$=|http_uri:encode(to_string(Value))].
+    <<(http_uri:encode(to_camel_case(Key)))/binary, $=,
+      (http_uri:encode(to_binary(Value)))/binary>>.
 
 headers(patch, Headers, Body, Access) when is_map(Body) ->
     [?HeaderContentTypeJsonPatch|headers(Headers, Access)];
@@ -225,14 +228,14 @@ headers(_Method, Headers, Body, Access) when is_map(Body) ->
 headers(_Method, Headers, _Body, Access) -> headers(Headers, Access).
 
 headers(Headers, Access) ->
-    [{"Authorization", authorization(Access)}|Headers].
+    [{<<"Authorization">>, authorization(Access)}|Headers].
 
-authorization(#{token := Token}) -> "Bearer " ++ Token;
+authorization(#{token := Token}) -> <<"Bearer ", Token/binary>>;
 authorization(#{username := UserName, password := Password}) ->
-    base64:encode(UserName ++ [$:|Password]);
-authorization(_Access) -> "".
+    base64:encode(<<UserName/binary, $:, Password/binary>>);
+authorization(_Access) -> <<>>.
 
-body(false) -> <<>>;
+body(<<>>) -> <<>>;
 body(Body) when is_map(Body) -> jsx:encode(Body).
 
 http_options(Options, Access) -> [
@@ -274,13 +277,15 @@ options_take(Key, Options1, Default) ->
         false -> {Default, Options1}
     end.
 
-underscore_atom_to_camel_case_string(Atom) when is_atom(Atom) ->
-    case string:split(atom_to_list(Atom), "_", all) of
+to_camel_case(Term) ->
+    case string:split(to_binary(Term), "_", all) of
         [First] -> First;
-        [First|Rest] -> lists:flatten([First|[[H-32|T] || [H|T] <- Rest]])
-    end;
-underscore_atom_to_camel_case_string(Term) -> Term.
+        [First|Rest] ->
+            CamelRest = [<<(H-32), T/binary>> || <<H, T/binary>> <- Rest],
+            iolist_to_binary([First|CamelRest])
+    end.
 
-to_string(Atom) when is_atom(Atom) -> atom_to_list(Atom);
-to_string(Number) when is_number(Number) -> integer_to_list(Number);
-to_string(String) when is_list(String) -> String.
+to_binary(A) when is_atom(A) -> atom_to_binary(A, utf8);
+to_binary(L) when is_list(L) -> list_to_binary(L);
+to_binary(N) when is_number(N) -> integer_to_binary(N);
+to_binary(B) -> B.
