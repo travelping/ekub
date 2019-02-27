@@ -3,9 +3,9 @@
 An Erlang client library to work with [Kubernetes] via [Kubernetes API].
 
 Under construction.
-Documentation coming soon.
+Documentation is on the way.
 
 <!-- Links -->
 
 [Kubernetes]: https://kubernetes.io
-[Kubernetes API]: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.10
+[Kubernetes API]: https://kubernetes.io/docs/reference

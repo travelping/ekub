@@ -19,14 +19,12 @@
     ws_recv_close/1, ws_recv_close/2
 ]).
 
--define(Yaml, ekub_yaml).
-
--define(HeaderTextContentTypeJson, {"Content-Type", "application/json"}).
+-define(HeaderContentTypeJsonText, {"Content-Type", "application/json"}).
 -define(HeaderContentTypeJson, {<<"Content-Type">>, <<"application/json">>}).
 -define(HeaderContentTypeJsonPatch,
     {<<"Content-Type">>, <<"application/strategic-merge-patch+json">>}).
 
--define(JsonDecodeOptions, [return_maps, {labels, atom}]).
+-define(JsonDecodeOptions, [return_maps]).
 
 -define(RecvTimeout, 60 * 1000). % milliseconds
 
@@ -37,20 +35,20 @@
     client_key
 ]).
 
-http_request(Resource, Access) ->
-    http_request(Resource, [], Access).
+http_request(Endpoint, Access) ->
+    http_request(Endpoint, [], Access).
 
-http_request(Resource, Query, Access) ->
-    http_request(get, Resource, Query, [], false, [], Access).
+http_request(Endpoint, Query, Access) ->
+    http_request(get, Endpoint, Query, [], false, [], Access).
 
-http_request(Method, Resource, Query, Access) ->
-    http_request(Method, Resource, Query, [], false, [], Access).
+http_request(Method, Endpoint, Query, Access) ->
+    http_request(Method, Endpoint, Query, [], false, [], Access).
 
-http_request(Method, Resource, Query, Body, Access) ->
-    http_request(Method, Resource, Query, [], Body, [], Access).
+http_request(Method, Endpoint, Query, Body, Access) ->
+    http_request(Method, Endpoint, Query, [], Body, [], Access).
 
-http_request(Method, Resource, Query, Headers, Body, Options, Access) ->
-    Url = url(Resource, Query, Access),
+http_request(Method, Endpoint, Query, Headers, Body, Options, Access) ->
+    Url = url(Endpoint, Query, Access),
     http_request(Method, Url, Headers, Body, Options, Access).
 
 http_request(Method, Url, Headers, Body, Options, Access) ->
@@ -61,14 +59,14 @@ http_request(Method, Url, Headers, Body, Options, Access) ->
             {error, Reason}
     end.
 
-http_stream_request(Resource, Access) ->
-    http_stream_request(Resource, [], Access).
+http_stream_request(Endpoint, Access) ->
+    http_stream_request(Endpoint, [], Access).
 
-http_stream_request(Resource, Query, Access) ->
-    http_stream_request(get, Resource, Query, [], <<>>, [], Access).
+http_stream_request(Endpoint, Query, Access) ->
+    http_stream_request(get, Endpoint, Query, [], <<>>, [], Access).
 
-http_stream_request(Method, Resource, Query, Headers, Body, Options, Access) ->
-    Url = url(Resource, Query, Access),
+http_stream_request(Method, Endpoint, Query, Headers, Body, Options, Access) ->
+    Url = url(Endpoint, Query, Access),
     http_stream_request(Method, Url, Headers, Body, Options, Access).
 
 http_stream_request(Method, Url, Headers, Body, Options, Access) ->
@@ -76,18 +74,6 @@ http_stream_request(Method, Url, Headers, Body, Options, Access) ->
         {ok, {_Code, _ResponseHeaders, Ref}} -> {ok, Ref};
         {error, Reason} -> {error, Reason}
     end.
-
-http_request_ref(Method, Url, Headers, Body, Options, Access)
-    when is_list(Body); is_binary(Body); is_tuple(Body)
-->
-    case ?Yaml:read(Body, [binary]) of
-        {ok, []} ->
-            http_request_ref(Method, Url, Headers, #{}, Options, Access);
-        {ok, [ReadBody|_]} ->
-            http_request_ref(Method, Url, Headers, ReadBody, Options, Access);
-        {error, Reason} ->
-            {error, {yaml, Reason}}
-    end;
 
 http_request_ref(Method, Url, Headers, Body, Options, Access) ->
     case hackney:request(
@@ -113,7 +99,7 @@ http_body_read(Headers, Ref) when is_reference(Ref) ->
 http_body_read(Headers, Body) ->
     IsJson = ?HeaderContentTypeJson ==
                  lists:keyfind(<<"Content-Type">>, 1, Headers) orelse
-             ?HeaderTextContentTypeJson ==
+             ?HeaderContentTypeJsonText ==
                  lists:keyfind("Content-Type", 1, Headers),
 
     if IsJson -> jsx:decode(Body, ?JsonDecodeOptions);
@@ -150,14 +136,14 @@ http_stream_to_json(Ref, Data, DecodeFun) ->
             http_stream_read(Ref, NewDecodeFun)
     end.
 
-ws_request(Resource, Access) ->
-    ws_request(Resource, [], [], [], Access).
+ws_request(Endpoint, Access) ->
+    ws_request(Endpoint, [], [], [], Access).
 
-ws_request(Resource, Query, Access) ->
-    ws_request(Resource, Query, [], [], Access).
+ws_request(Endpoint, Query, Access) ->
+    ws_request(Endpoint, Query, [], [], Access).
 
-ws_request(Resource, Query, Headers, Options, Access) ->
-    ws_request(url(Resource, Query, Access), Headers, Options, Access).
+ws_request(Endpoint, Query, Headers, Options, Access) ->
+    ws_request(url(Endpoint, Query, Access), Headers, Options, Access).
 
 ws_request(Url, Headers, Options, Access) ->
     {RecvTimeout, FinalOptions} = options_take(recv_timeout, Options, infinity),
@@ -166,14 +152,14 @@ ws_request(Url, Headers, Options, Access) ->
         {error, Reason} -> {error, Reason}
     end.
 
-ws_connect(Resource, Access) ->
-    ws_connect(Resource, [], [], [], Access).
+ws_connect(Endpoint, Access) ->
+    ws_connect(Endpoint, [], [], [], Access).
 
-ws_connect(Resource, Query, Access) ->
-    ws_connect(Resource, Query, [], [], Access).
+ws_connect(Endpoint, Query, Access) ->
+    ws_connect(Endpoint, Query, [], [], Access).
 
-ws_connect(Resource, Query, Headers, Options, Access) ->
-    ws_connect(url(Resource, Query, Access), Headers, Options, Access).
+ws_connect(Endpoint, Query, Headers, Options, Access) ->
+    ws_connect(url(Endpoint, Query, Access), Headers, Options, Access).
 
 ws_connect(Url, Headers, Options, Access) ->
     case ewsc:connect(Url, headers(Headers, Access),
@@ -213,14 +199,14 @@ ws_append_messages(Messages, NewMessages) ->
     NewMessagesStripped = [M || <<_, M/binary>> <- NewMessages],
     <<Messages/binary, (iolist_to_binary(NewMessagesStripped))/binary>>.
 
-resource(Path, Args) ->
+endpoint(Path, Args) ->
     lists:flatten(io_lib:format(Path, Args)).
 
 url({Path, Args}, Query, Access) ->
-    url(resource(Path, Args), Query, Access);
+    url(endpoint(Path, Args), Query, Access);
 
-url(Resource, Query, Access) ->
-    maps:get(server, Access, "") ++ Resource ++ url_query(Query).
+url(Endpoint, Query, Access) ->
+    maps:get(server, Access, "") ++ Endpoint ++ url_query(Query).
 
 url_query([]) -> "";
 url_query(Query) ->
