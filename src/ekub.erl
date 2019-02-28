@@ -4,7 +4,7 @@
     create/2, create/3, create/4, create/5,
     delete/2, delete/3, delete/4, delete/5,
 
-    patch/4, patch/5,
+    patch/5, patch/6,
     replace/4,
 
     read/4, read/6,
@@ -66,8 +66,13 @@ delete(ResourceType, Namespace, Name, Query, {Api, Access}) ->
     Endpoint = endpoint(ResourceType, Namespace, Name, "", Api),
     ?Core:http_request(delete, Endpoint, Query, Access).
 
+patch(ResourceType, Namespace, Query, Patch, {Api, Access})
+    when is_tuple(hd(Query))
+->
+    patch(ResourceType, Namespace, "", Query, Patch, {Api, Access});
+
 patch(ResourceType, Namespace, Name, Patch, {Api, Access}) ->
-    patch(ResourceType, Namespace, Name, Query, Patch, {Api, Access}).
+    patch(ResourceType, Namespace, Name, [], Patch, {Api, Access}).
 
 patch(ResourceType, Namespace, Name, Query, Patch, {Api, Access}) ->
     Endpoint = endpoint(ResourceType, Namespace, Name, "", Api),
