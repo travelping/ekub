@@ -4,7 +4,7 @@
     endpoint/2, endpoint/3, endpoint/4, endpoint/5,
 
     group/2, group/3,
-    resource_type/2, resource_type/3,
+    resource_types/1, resource_type/2, resource_type/3,
 
     load/1
 ]).
@@ -53,6 +53,9 @@ group(ResourceRef, SubResource, Api) ->
             maps:find(ResourceType, Groups);
         error -> error
     end.
+
+resource_types(Api) ->
+    [binary_to_list(Type) || Type <- maps:keys(maps:get(groups, Api))].
 
 resource_type(ResourceRef, Api) ->
     resource_type(ResourceRef, <<"">>, Api).
