@@ -230,9 +230,9 @@ headers(_Method, Headers, _Body, Access) -> headers(Headers, Access).
 headers(Headers, Access) ->
     [{<<"Authorization">>, authorization(Access)}|Headers].
 
-authorization(#{token := Token}) -> <<"Bearer ", Token/binary>>;
+authorization(#{token := Token}) -> iolist_to_binary(["Bearer ", Token]);
 authorization(#{username := UserName, password := Password}) ->
-    base64:encode(<<UserName/binary, $:, Password/binary>>);
+    base64:encode(iolist_to_binary([UserName, $:, Password]));
 authorization(_Access) -> <<>>.
 
 body(<<>>) -> <<>>;
