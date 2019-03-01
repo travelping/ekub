@@ -68,7 +68,8 @@
 default_options() -> [
     [{kubeconfig, ?Config:filename()}],
 
-    [{ca_cert_file, ?DefaultServiceAccountDir ++ "/ca.crt"},
+    [{server, "https://kubernetes"},
+     {ca_cert_file, ?DefaultServiceAccountDir ++ "/ca.crt"},
      {token_file, ?DefaultServiceAccountDir ++ "/token"},
      {namespace_file, ?DefaultServiceAccountDir ++ "/namespace"}]
 ].
@@ -138,7 +139,7 @@ read_option({Name, Value}) when
     Name == token_file
 ->
     case file:read_file(Value) of
-        {ok, Binary} -> {ok, #{trim_suffix(Name) => binary_to_list(Binary)}};
+        {ok, Binary} -> {ok, #{trim_suffix(Name) => Binary}};
         {error, Reason} -> {error, Reason}
     end;
 
