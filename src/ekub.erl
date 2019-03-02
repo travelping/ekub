@@ -11,8 +11,8 @@
     watch/2, watch/3, watch/4, watch/5,
     watch/1,
 
-    logs/3, logs/4,
-    exec/5, exec/6,
+    logs/3, logs/4, logs/5,
+    exec/4, exec/5, exec/6,
 
     endpoint/5,
     metadata/3
@@ -140,11 +140,26 @@ watch(ResourceType, Namespace, Name, Query, {Api, Access}) ->
 watch(Ref) -> ?Core:http_stream_read(Ref).
 
 logs(Namespace, PodName, {Api, Access}) ->
-    logs(Namespace, PodName, [], {Api, Access}).
+    logs(Namespace, PodName, "", [], {Api, Access}).
 
-logs(Namespace, PodName, Query, {Api, Access}) ->
+logs(Namespace, PodName, Query, {Api, Access}) when is_tuple(hd(Query)) ->
+    logs(Namespace, PodName, "", Query, {Api, Access});
+
+logs(Namespace, PodName, ContainerName, {Api, Access}) ->
+    logs(Namespace, PodName, ContainerName, [], {Api, Access}).
+
+logs(Namespace, PodName, ContainerName, Query, {Api, Access}) ->
     Endpoint = endpoint(pods, Namespace, PodName, log, {Api, Access}),
-    ?Core:http_request(Endpoint, Query, Access).
+    FinalQuery = ensure_option(container, ContainerName, Query),
+    ?Core:http_request(Endpoint, FinalQuery, Access).
+
+exec(Namespace, PodName, Command, {Api, Access}) ->
+    exec(Namespace, PodName, "", Command, [], {Api, Access}).
+
+exec(Namespace, PodName, Command, Options, {Api, Access})
+    when is_tuple(hd(Options))
+->
+    exec(Namespace, PodName, "", Command, Options, {Api, Access});
 
 exec(Namespace, PodName, ContainerName, Command, {Api, Access}) ->
     exec(Namespace, PodName, ContainerName, Command, [], {Api, Access}).
@@ -157,9 +172,7 @@ exec(Namespace, PodName, ContainerName, Command, Options, {Api, Access}) ->
              {container, ContainerName}|
              [{command, Arg} || Arg <- string:split(Command, " ", all)]],
 
-    HasTimeout = lists:keymember(recv_timeout, 1, Options),
-    FinalOptions = if HasTimeout -> Options;
-                  not HasTimeout -> [{recv_timeout, ?ExecTimeout}|Options] end,
+    FinalOptions = ensure_option(recv_timeout, ?ExecTimeout, Options),
 
     ?Core:ws_request(Endpoint, Query, [], FinalOptions, Access).
 
@@ -181,3 +194,8 @@ namespace(Namespace, Access) ->
     NamespaceIsEmpty = string:is_empty(Namespace),
     if  NamespaceIsEmpty -> maps:get(namespace, Access, "");
     not NamespaceIsEmpty -> Namespace end.
+
+ensure_option(Name, Value, Options) ->
+    HasOption = lists:keymember(Name, 1, Options),
+    if  HasOption -> Options;
+    not HasOption -> [{Name, Value}|Options] end.
