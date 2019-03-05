@@ -7,6 +7,8 @@
     http_stream_request/2, http_stream_request/3,
     http_stream_request/6, http_stream_request/7,
 
+    http_close/1,
+
     http_body_read/2,
     http_stream_read/1,
 
@@ -74,6 +76,9 @@ http_stream_request(Method, Url, Headers, Body, Options, Access) ->
         {ok, {_Code, _ResponseHeaders, Ref}} -> {ok, Ref};
         {error, Reason} -> {error, Reason}
     end.
+
+http_close(Ref) ->
+    hackney:close(Ref).
 
 http_request_ref(Method, Url, Headers, Body, Options, Access) ->
     case hackney:request(

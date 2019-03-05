@@ -9,7 +9,9 @@
 
     read/2, read/3, read/4, read/5, read/6,
     watch/2, watch/3, watch/4, watch/5,
+
     watch/1,
+    watch_close/1,
 
     logs/3, logs/4, logs/5,
     exec/4, exec/5, exec/6,
@@ -138,6 +140,7 @@ watch(ResourceType, Namespace, Name, Query, {Api, Access}) ->
     ?Core:http_stream_request(Endpoint, [{watch, true}|Query], Access).
 
 watch(Ref) -> ?Core:http_stream_read(Ref).
+watch_close(Ref) -> ?Core:http_close(Ref).
 
 logs(Namespace, PodName, {Api, Access}) ->
     logs(Namespace, PodName, "", [], {Api, Access}).
