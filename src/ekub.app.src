@@ -3,5 +3,5 @@
     {id, "ekub"},
     {vsn, "0.1.0"},
     {modules, []},
-    {applications, [kernel, stdlib, jsx, yamerl, ewsc, hackney]}
+    {applications, [kernel, stdlib, inets, jsx, yamerl, ewsc, hackney]}
 ]}.
