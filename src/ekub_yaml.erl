@@ -1,6 +1,7 @@
 -module(ekub_yaml).
 
 -export([
+    read_url/1, read_url/2,
     read_file/1, read_file/2,
     read/1, read/2,
 
@@ -11,6 +12,13 @@
 ]).
 
 -include_lib("yamerl/include/yamerl_errors.hrl").
+
+read_url(Url) -> read_url(Url, []).
+read_url(Url, Options) ->
+    case httpc:request(Url) of
+        {ok, {_StatusLine, _Headers, Body}} -> read(Body, Options);
+        {error, Reason} -> {error, Reason}
+    end.
 
 read_file(FileName) -> read_file(FileName, []).
 read_file(FileName, Options) ->
