@@ -1,6 +1,8 @@
 -module(ekub).
 
 -export([
+    init/0, init/1,
+
     create/2, create/3, create/4,
     delete/2, delete/3, delete/4, delete/5,
 
@@ -21,8 +23,21 @@
 
 -define(Api, ekub_api).
 -define(Core, ekub_core).
+-define(Access, ekub_access).
 
 -define(ExecTimeout, 60 * 1000). % 1 minute
+
+init() ->
+    case ?Access:read() of
+        {ok, Access} -> init(Access);
+        {error, Reason} -> {error, Reason}
+    end.
+
+init(Access) ->
+    case ?Api:load(Access) of
+        {ok, Api} -> {ok, {Api, Access}};
+        {error, Reason} -> {error, Reason}
+    end.
 
 create(Resource, {Api, Access}) ->
     create(Resource, "", [], {Api, Access}).
