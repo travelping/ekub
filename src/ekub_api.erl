@@ -1,10 +1,17 @@
 -module(ekub_api).
 
 -export([
-    endpoint/2, endpoint/3, endpoint/4, endpoint/5,
+    endpoint/2, endpoint/3, endpoint/4, endpoint/5, endpoint/6,
 
-    group/2, group/3,
-    resource_types/1, resource_type/2, resource_type/3,
+    namespace/3,
+
+    is_resource/2,
+    is_namespaced/2,
+
+    group/2,
+
+    resource_types/1, resource_type/2,
+    sub_resource/1,
 
     load/1
 ]).
@@ -14,22 +21,31 @@
 -define(ApiCoreEndpoint, <<"/api/v1">>).
 -define(ApisEndpoint, <<"/apis">>).
 
-endpoint(Group, ResourceType) ->
-    endpoint(Group, ResourceType, <<"">>, <<"">>, <<"">>).
+endpoint(ResourceAlias, {Api, Access}) ->
+    endpoint(false, ResourceAlias, "", "", {Api, Access}).
 
-endpoint(Group, ResourceType, Namespace) ->
-    endpoint(Group, ResourceType, Namespace, <<"">>, <<"">>).
+endpoint(ResourceAlias, Namespace, {Api, Access}) ->
+    endpoint(false, ResourceAlias, Namespace, "", {Api, Access}).
 
-endpoint(Group, ResourceType, Namespace, Name) ->
-    endpoint(Group, ResourceType, Namespace, Name, <<"">>).
+endpoint(ResourceAlias, Namespace, Name, {Api, Access}) ->
+    endpoint(false, ResourceAlias, Namespace, Name, {Api, Access}).
 
-endpoint(Group, ResourceType, Namespace, Name, SubResource) ->
-    endpoint_build(to_binary(Group), to_binary(ResourceType),
-                   to_binary(Namespace), to_binary(Name),
-                   to_binary(SubResource)).
+endpoint(Group, ResourceAlias, Namespace, Name, {Api, Access}) ->
+    IsResource = is_resource(ResourceAlias, Api),
+    if IsResource ->
+        {GroupName, GroupVersion} = if is_tuple(Group) -> Group;
+                                    not Group -> group(ResourceAlias, Api) end,
+        endpoint(
+            to_binary(GroupName),
+            to_binary(GroupVersion),
+            to_binary(resource_type(ResourceAlias, Api)),
+            to_binary(namespace(ResourceAlias, Namespace, {Api, Access})),
+            to_binary(Name),
+            to_binary(sub_resource(ResourceAlias))
+        );
+    not IsResource -> "" end.
 
-endpoint_build(Group, ResourceType, Namespace, Name, SubResource) ->
-    {GroupName, GroupVersion} = Group,
+endpoint(GroupName, GroupVersion, ResourceType, Namespace, Name, SubResource) ->
     iolist_to_binary([
         if GroupName == <<"">> -> <<"/api/", GroupVersion/binary>>;
            GroupName /= <<"">> -> <<"/apis/", GroupName/binary,
@@ -43,26 +59,36 @@ endpoint_build(Group, ResourceType, Namespace, Name, SubResource) ->
            SubResource /= <<"">> -> <<$/, SubResource/binary>> end
     ]).
 
-group(ResourceRef, Api) ->
-    group(ResourceRef, <<"">>, Api).
+namespace(ResourceAlias, Namespace, {Api, Access}) ->
+    IsNamespaced = is_namespaced(ResourceAlias, Api),
+    if IsNamespaced ->
+        IsNamespaceEmpty = string:is_empty(Namespace),
+        if IsNamespaceEmpty -> maps:get(namespace, Access, <<"">>);
+        not IsNamespaceEmpty -> Namespace end;
+    not IsNamespaced -> "" end.
 
-group(ResourceRef, SubResource, Api) ->
-    case resource_type(ResourceRef, SubResource, Api) of
-        {ok, ResourceType} ->
-            Groups = maps:get(groups, Api, #{}),
-            maps:find(ResourceType, Groups);
-        error -> error
-    end.
+is_resource(ResourceAlias, Api) ->
+    maps:is_key(alias(ResourceAlias), maps:get(aliases, Api, #{})).
+
+is_namespaced(ResourceAlias, Api) ->
+    ResourceType = resource_type(ResourceAlias, Api),
+    sets:is_element(ResourceType, maps:get(namespaced, Api, sets:new())).
+
+group(ResourceAlias, Api) ->
+    ResourceType = resource_type(ResourceAlias, Api),
+    maps:get(ResourceType, maps:get(groups, Api, #{})).
 
 resource_types(Api) ->
-    [binary_to_list(Type) || Type <- maps:keys(maps:get(groups, Api))].
+    [binary_to_list(Type) || Type <- maps:keys(maps:get(groups, Api, #{}))].
 
-resource_type(ResourceRef, Api) ->
-    resource_type(ResourceRef, <<"">>, Api).
+resource_type(ResourceAlias, Api) ->
+    maps:get(alias(ResourceAlias), maps:get(aliases, Api, #{})).
 
-resource_type(ResourceRef, SubResource, Api) ->
-    Alias = to_binary({ResourceRef, SubResource}),
-    maps:find(Alias, maps:get(aliases, Api, #{})).
+sub_resource({_ResourceRef, SubResource}) -> SubResource;
+sub_resource(_ResourceAlias) -> "".
+
+alias(Alias) when is_tuple(Alias) -> to_binary(Alias);
+alias(Alias) -> to_binary({Alias, <<"">>}).
 
 load(Access) ->
     case load_endpoints(Access) of
@@ -101,9 +127,10 @@ build_api_fun(Endpoint) -> fun(ApiResource, Api) ->
     Name = maps:get(<<"name">>, ApiResource),
     PluralName = maps:get(<<"pluralName">>, ApiResource, <<"">>),
     SingularName = maps:get(<<"singularName">>, ApiResource, <<"">>),
+    IsNamespaced = maps:get(<<"namespaced">>, ApiResource, false),
     {ResourceType, SubResource} = resource_type_sub_resource(Name),
 
-    Names = lists:filter(fun({X, _}) -> X /= <<"">> end, [
+    ResourceAliases = lists:filter(fun({X, _}) -> X /= <<"">> end, [
         {Kind, SubResource},
         {string:lowercase(Kind), SubResource},
         {PluralName, SubResource},
@@ -117,11 +144,17 @@ build_api_fun(Endpoint) -> fun(ApiResource, Api) ->
     Groups0 = maps:get(groups, Api, #{}),
     Groups = maps:put(ResourceType, group(Endpoint), Groups0),
 
-    Aliases = lists:foldl(fun(Alias, Aliases0) ->
-        maps:put(Alias, ResourceType, Aliases0)
-    end, maps:get(aliases, Api, #{}), Names),
+    Aliases = lists:foldl(fun(ResourceAlias, Aliases0) ->
+        maps:put(ResourceAlias, ResourceType, Aliases0)
+    end, maps:get(aliases, Api, #{}), ResourceAliases),
 
-    maps:put(aliases, Aliases, maps:put(groups, Groups, Api))
+    Namespaced0 = maps:get(namespaced, Api, sets:new()),
+    Namespaced = if IsNamespaced -> sets:add_element(ResourceType, Namespaced0);
+                 not IsNamespaced -> Namespaced0 end,
+
+    maps:put(namespaced, Namespaced,
+    maps:put(aliases, Aliases,
+    maps:put(groups, Groups, Api)))
 end.
 
 group(Endpoint) ->
