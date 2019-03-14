@@ -1,9 +1,9 @@
-GitSha = os:cmd("git rev-parse HEAD"),
-GitShaShort = string:slice(GitSha, 0, 8),
-
-{application, Name, Config} = lists:keyfind(application, 1, CONFIG),
-Env = proplists:get_value(env, Config, []),
-NewEnv = lists:keystore(git_sha, 1, Env, {git_sha, GitShaShort}),
-
-NewConfig = lists:keystore(env, 1, Config, {env, NewEnv}),
-lists:keystore(application, 1, CONFIG, {application, Name, NewConfig}).
+{application, ekub, [
+    {description, "Kubernetes API client library"},
+    {vsn, "0.1.0"},
+    {modules, []},
+    {applications, [kernel, stdlib, inets, jsx, yamerl, ewsc, hackney]},
+    {env, [
+        {git_sha, lists:sublist(os:cmd("git rev-parse HEAD 2>/dev/null"), 8)}
+    ]}
+]}.
