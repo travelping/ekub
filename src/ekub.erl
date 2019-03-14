@@ -15,8 +15,8 @@
     watch/1,
     watch_close/1,
 
-    logs/3, logs/4, logs/5,
-    exec/4, exec/5, exec/6,
+    logs/2, logs/3, logs/4, logs/5,
+    exec/3, exec/4, exec/5, exec/6,
 
     metadata/2
 ]).
@@ -152,6 +152,9 @@ watch(ResourceAlias, Namespace, Name, Query, {Api, Access}) ->
 watch(Ref) -> ?Core:http_stream_read(Ref).
 watch_close(Ref) -> ?Core:http_close(Ref).
 
+logs(PodName, {Api, Access}) ->
+    logs("", PodName, "", [], {Api, Access}).
+
 logs(Namespace, PodName, {Api, Access}) ->
     logs(Namespace, PodName, "", [], {Api, Access}).
 
@@ -165,6 +168,9 @@ logs(Namespace, PodName, ContainerName, Query, {Api, Access}) ->
     Endpoint = ?Api:endpoint({pods, log}, Namespace, PodName, {Api, Access}),
     FinalQuery = ensure_option(container, ContainerName, Query),
     ?Core:http_request(Endpoint, FinalQuery, Access).
+
+exec(PodName, Command, {Api, Access}) ->
+    exec("", PodName, "", Command, [], {Api, Access}).
 
 exec(Namespace, PodName, Command, {Api, Access}) ->
     exec(Namespace, PodName, "", Command, [], {Api, Access}).
