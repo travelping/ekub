@@ -7,8 +7,129 @@ An Erlang client library to work with [Kubernetes] via [Kubernetes API].
 
 ## Usage
 
-Under construction.
-Documentation is on the way.
+Read access from the current kubeconfig or service account folder (in case of
+running from a pod):
+
+```
+{ok, Access} = ekub_access:read().
+```
+
+Load current cluster API:
+
+```
+{ok, Api} = ekub_api:load(Access).
+```
+
+In one go:
+
+```
+{ok, {Api, Access}} = ekub:init().
+```
+
+Deployment YAML file:
+
+```
+$ cat deployment.yaml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: a
+spec:
+  selector:
+    matchLabels:
+      app: a
+  template:
+    metadata:
+      labels:
+        app: a
+    spec:
+      containers:
+      - image: alpine
+        name: a
+        command:
+        - sh
+        - -c
+        - |
+          echo "Sleeping..."
+          sleep 1000000
+```
+
+Create deployment from the YAML file:
+
+```
+{ok, [Resource|_]} = ekub_yaml:read_file("deployment.yaml").
+{ok, Object} = ekub:create(Resource, {Api, Access}).
+```
+
+Get all the pod names in the current namespace:
+
+```
+{ok, PodList} = ekub:read(pod, {Api, Access}).
+PodNames = [Name || #{<<"metadata">> := #{<<"name">> := Name}}
+                    <- maps:get(<<"items">>, PodList)].
+```
+
+Watch pods for the changes:
+
+```
+start_watch({Api, Access}) ->
+    case ekub:watch(pods, {Api, Access}) of
+        {ok, Ref} -> continue_watch(Ref, {Api, Access});
+        {error, Reason} -> {error, Reason}
+    end.
+
+continue_watch(Ref, {Api, Access}) ->
+    case ekub:watch(Ref) of
+        {ok, done} -> start_watch({Api, Access});
+        {ok, Events} -> <Process Events>, continue_watch(Ref, {Api, Access});
+        {error, timeout} -> continue_watch(Ref, {Api, Access});
+        {error, req_not_found} -> start_watch({Api, Access});
+        {error, Reason} -> {error, Reason}
+    end.
+```
+
+Patch a resource:
+
+```
+$ cat patch.yaml
+spec:
+  template:
+    metadata:
+      labels:
+        purpose: test
+```
+
+```
+{ok, Patch} = ekub_yaml:read_file("patch.yaml").
+
+% if namespace is empty the current one is used
+ekub:patch(deploy, "", "a", Patch, {Api, Access}).
+```
+
+Execute a command within a pod:
+
+```
+ekub:exec(hd(PodNames), "ls -l", {Api, Access}).
+```
+
+Get a pod logs:
+
+```
+ekub:logs(hd(PodNames), {Api, Access}).
+```
+
+Delete deployment:
+
+```
+% if namespace is empty the current one is used
+ekub:delete(deploy, "", "a", [{propagation_policy, 'Foreground'}], {Api, Access}).
+```
+
+or:
+
+```
+ekub:delete(Resource, [{propagation_policy, 'Foreground'}], {Api, Access}).
+```
 
 ## License
 
