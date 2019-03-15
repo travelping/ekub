@@ -76,9 +76,9 @@ maps_put(Key, Map, Options) ->
     maps_put(Key, null, Map, Options).
 
 maps_put(Key, Value, Map, Options) -> 
-    IsBinaryOption = lists:member(binary, Options),
-    if IsBinaryOption -> maps_put_binary(Key, Value, Map);
-    not IsBinaryOption -> maps:put(Key, Value, Map) end.
+    IsListsOption = lists:member(lists, Options),
+    if IsListsOption -> maps:put(Key, Value, Map);
+    not IsListsOption -> maps_put_binary(Key, Value, Map) end.
 
 maps_put_binary(Key, Value, Map) ->
     maps:put(list_to_binary(Key), string_to_binary(Value), Map).
