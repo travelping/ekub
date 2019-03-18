@@ -6,8 +6,8 @@
     create/2, create/3, create/4,
     delete/2, delete/3, delete/4, delete/5,
 
-    patch/3, patch/4, patch/5, patch/6,
     replace/2, replace/3, replace/4,
+    patch/3, patch/4, patch/5, patch/6,
 
     read/2, read/3, read/4, read/5,
     watch/2, watch/3, watch/4, watch/5,
@@ -88,6 +88,22 @@ delete(ResourceAlias, Namespace, Name, Query, {Api, Access}) ->
     Endpoint = ?Api:endpoint(ResourceAlias, Namespace, Name, {Api, Access}),
     ?Core:http_request(delete, Endpoint, Query, Access).
 
+replace(Resource, {Api, Access}) ->
+    replace(Resource, "", [], {Api, Access}).
+
+replace(Resource, Query, {Api, Access}) when is_tuple(hd(Query)) ->
+    replace(Resource, "", Query, {Api, Access});
+
+replace(Resource, Namespace, {Api, Access}) ->
+    replace(Resource, Namespace, [], {Api, Access}).
+
+replace(Resource, Namespace, Query, {Api, Access}) ->
+    {Group, ResourceAlias, FinalNamespace, Name} =
+        metadata(Resource, Namespace),
+    Endpoint = ?Api:endpoint(
+        Group, ResourceAlias, FinalNamespace, Name, {Api, Access}),
+    ?Core:http_request(put, Endpoint, Query, Resource, Access).
+
 patch(ResourceAlias, Patch, {Api, Access}) ->
     patch(ResourceAlias, "", "", [], Patch, {Api, Access}).
 
@@ -108,22 +124,6 @@ patch(ResourceAlias, Namespace, Name, Patch, {Api, Access}) ->
 patch(ResourceAlias, Namespace, Name, Query, Patch, {Api, Access}) ->
     Endpoint = ?Api:endpoint(ResourceAlias, Namespace, Name, {Api, Access}),
     ?Core:http_request(patch, Endpoint, Query, Patch, Access).
-
-replace(Resource, {Api, Access}) ->
-    replace(Resource, "", [], {Api, Access}).
-
-replace(Resource, Query, {Api, Access}) when is_tuple(hd(Query)) ->
-    replace(Resource, "", Query, {Api, Access});
-
-replace(Resource, Namespace, {Api, Access}) ->
-    replace(Resource, Namespace, [], {Api, Access}).
-
-replace(Resource, Namespace, Query, {Api, Access}) ->
-    {Group, ResourceAlias, FinalNamespace, Name} =
-        metadata(Resource, Namespace),
-    Endpoint = ?Api:endpoint(
-        Group, ResourceAlias, FinalNamespace, Name, {Api, Access}),
-    ?Core:http_request(put, Endpoint, Query, Resource, Access).
 
 read(ResourceAlias, {Api, Access}) ->
     read(ResourceAlias, "", "", [], {Api, Access}).
