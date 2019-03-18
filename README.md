@@ -2,10 +2,14 @@
 
 [![License: Apache-2.0][Apache 2.0 Badge]][Apache 2.0]
 [![GitHub Release Badge]][GitHub Releases]
+[![Erlang Releases Badge]][Erlang Releases]
 
-An Erlang client library to work with [Kubernetes] via [Kubernetes API].
+An [Erlang] client library to work with [Kubernetes] via [Kubernetes API].
 
 ## Usage
+
+The "make shell" command will get into an Erlang console with everything needed
+(except Erlang itself) downloaded, built and loaded.
 
 Read access from the current kubeconfig or service account folder (in case of
 running from a pod):
@@ -149,6 +153,7 @@ limitations under the License.
 
 <!-- Links -->
 
+[Erlang]: http://www.erlang.org
 [Kubernetes]: https://kubernetes.io
 [Kubernetes API]: https://kubernetes.io/docs/reference
 
@@ -158,3 +163,5 @@ limitations under the License.
 [Apache 2.0 Badge]: https://img.shields.io/badge/License-Apache%202.0-yellowgreen.svg?style=flat-square
 [GitHub Releases]: https://github.com/travelping/ekub/releases
 [GitHub Release Badge]: https://img.shields.io/github/release/travelping/ekub/all.svg?style=flat-square
+[Erlang Releases]: http://www.erlang.org/news/tag/release
+[Erlang Releases Badge]: https://img.shields.io/badge/Erlang-21.0%20to%2021.2-983936.svg?style=flat-square
