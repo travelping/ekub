@@ -1,6 +1,6 @@
 {application, ekub, [
     {description, "Kubernetes API client library"},
-    {vsn, "0.1.1"},
+    {vsn, "0.2.0"},
     {modules, []},
     {applications, [kernel, stdlib, inets, jsx, yamerl, ewsc, hackney]},
     {env, [
