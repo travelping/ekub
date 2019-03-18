@@ -7,7 +7,7 @@
     delete/2, delete/3, delete/4, delete/5,
 
     replace/2, replace/3, replace/4,
-    patch/3, patch/4, patch/5, patch/6,
+    patch/5, patch/6,
 
     read/2, read/3, read/4, read/5,
     watch/2, watch/3, watch/4, watch/5,
@@ -103,20 +103,6 @@ replace(Resource, Namespace, Query, {Api, Access}) ->
     Endpoint = ?Api:endpoint(
         Group, ResourceAlias, FinalNamespace, Name, {Api, Access}),
     ?Core:http_request(put, Endpoint, Query, Resource, Access).
-
-patch(ResourceAlias, Patch, {Api, Access}) ->
-    patch(ResourceAlias, "", "", [], Patch, {Api, Access}).
-
-patch(ResourceAlias, Query, Patch, {Api, Access}) when is_tuple(hd(Query)) ->
-    patch(ResourceAlias, "", "", Query, Patch, {Api, Access});
-
-patch(ResourceAlias, Namespace, Patch, {Api, Access}) ->
-    patch(ResourceAlias, Namespace, "", [], Patch, {Api, Access}).
-
-patch(ResourceAlias, Namespace, Query, Patch, {Api, Access})
-    when is_tuple(hd(Query))
-->
-    patch(ResourceAlias, Namespace, "", Query, Patch, {Api, Access});
 
 patch(ResourceAlias, Namespace, Name, Patch, {Api, Access}) ->
     patch(ResourceAlias, Namespace, Name, [], Patch, {Api, Access}).
