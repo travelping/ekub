@@ -7,7 +7,7 @@
     delete/2, delete/3, delete/4, delete/5,
 
     patch/3, patch/4, patch/5, patch/6,
-    replace/6,
+    replace/2, replace/3, replace/4,
 
     read/2, read/3, read/4, read/5,
     watch/2, watch/3, watch/4, watch/5,
@@ -49,8 +49,10 @@ create(Resource, Namespace, {Api, Access}) ->
     create(Resource, Namespace, [], {Api, Access}).
 
 create(Resource, Namespace, Query, {Api, Access}) ->
-    {Group, Kind, FinalNamespace, _Name} = metadata(Resource, Namespace),
-    Endpoint = ?Api:endpoint(Group, Kind, FinalNamespace, "", {Api, Access}),
+    {Group, ResourceAlias, FinalNamespace, _Name} =
+        metadata(Resource, Namespace),
+    Endpoint = ?Api:endpoint(
+        Group, ResourceAlias, FinalNamespace, "", {Api, Access}),
     ?Core:http_request(post, Endpoint, Query, Resource, Access).
 
 delete(Resource, {Api, Access}) ->
@@ -68,8 +70,10 @@ delete(ResourceAlias, Namespace, {Api, Access}) ->
     delete(ResourceAlias, Namespace, "", [], {Api, Access}).
 
 delete(Resource, Namespace, Query, {Api, Access}) when is_map(Resource) ->
-    {Group, Kind, FinalNamespace, Name} = metadata(Resource, Namespace),
-    Endpoint = ?Api:endpoint(Group, Kind, FinalNamespace, Name, {Api, Access}),
+    {Group, ResourceAlias, FinalNamespace, Name} =
+        metadata(Resource, Namespace),
+    Endpoint = ?Api:endpoint(
+        Group, ResourceAlias, FinalNamespace, Name, {Api, Access}),
     ?Core:http_request(delete, Endpoint, Query, Access);
 
 delete(ResourceAlias, Namespace, Query, {Api, Access})
@@ -105,9 +109,21 @@ patch(ResourceAlias, Namespace, Name, Query, Patch, {Api, Access}) ->
     Endpoint = ?Api:endpoint(ResourceAlias, Namespace, Name, {Api, Access}),
     ?Core:http_request(patch, Endpoint, Query, Patch, Access).
 
-replace(ResourceAlias, Namespace, Name, Query, ResourceTo, {Api, Access}) ->
-    Endpoint = ?Api:endpoint(ResourceAlias, Namespace, Name, {Api, Access}),
-    ?Core:http_request(put, Endpoint, Query, ResourceTo, Access).
+replace(Resource, {Api, Access}) ->
+    replace(Resource, "", [], {Api, Access}).
+
+replace(Resource, Query, {Api, Access}) when is_tuple(hd(Query)) ->
+    replace(Resource, "", Query, {Api, Access});
+
+replace(Resource, Namespace, {Api, Access}) ->
+    replace(Resource, Namespace, [], {Api, Access}).
+
+replace(Resource, Namespace, Query, {Api, Access}) ->
+    {Group, ResourceAlias, FinalNamespace, Name} =
+        metadata(Resource, Namespace),
+    Endpoint = ?Api:endpoint(
+        Group, ResourceAlias, FinalNamespace, Name, {Api, Access}),
+    ?Core:http_request(put, Endpoint, Query, Resource, Access).
 
 read(ResourceAlias, {Api, Access}) ->
     read(ResourceAlias, "", "", [], {Api, Access}).
@@ -201,9 +217,12 @@ metadata(Resource, Namespace) ->
                 [GroupName, GroupVersion] -> {GroupName, GroupVersion};
                 [GroupVersion] -> {"", GroupVersion}
             end,
+    Kind = maps:get(<<"kind">>, Resource),
+    IsStatus = maps:is_key(<<"status">>, Resource),
+    ResourceAlias = if IsStatus -> {Kind, <<"status">>};
+                    not IsStatus -> Kind end,
 
-    {Group,
-     maps:get(<<"kind">>, Resource),
+    {Group, ResourceAlias,
      maps:get(<<"namespace">>, Metadata, Namespace),
      maps:get(<<"name">>, Metadata)}.
 
