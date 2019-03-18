@@ -30,7 +30,7 @@ filename() ->
     {ok, Config :: kubeconfig()} | {error, Reason :: term()}.
 
 read(FileName) ->
-    ?Yaml:read_file(FileName).
+    ?Yaml:read_file(FileName, [lists]).
 
 -spec read(FileName :: string(), Options :: [minify | flatten])  ->
     {ok, Config :: kubeconfig()} | {error, Reason :: term()}.
