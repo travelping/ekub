@@ -8,8 +8,12 @@ An [Erlang] client library to work with [Kubernetes] via [Kubernetes API].
 
 ## Usage
 
-The "make shell" command will get into an Erlang console with everything needed
-(Erlang should be installed before) downloaded, built and loaded.
+Get into an Erlang shell with everything needed (Erlang should be installed
+before) downloaded, built and loaded:
+
+```
+$ make shell
+```
 
 Read access from the current kubeconfig or service account folder (in case of
 running from a pod):
@@ -33,23 +37,23 @@ In one go:
 Resource YAML file:
 
 ```
-$ cat deployment.yaml
+# deployment.yaml:
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: a
+  name: ekub-example
 spec:
   selector:
     matchLabels:
-      app: a
+      app: ekub-example
   template:
     metadata:
       labels:
-        app: a
+        app: ekub-example
     spec:
       containers:
       - image: alpine
-        name: a-sleep
+        name: ekub-example
         command:
         - sh
         - -c
@@ -59,22 +63,43 @@ spec:
       terminationGracePeriodSeconds: 0
 ```
 
-This example describes deployment, but can be whatever other resource supported
+This example describes [Deployment], but can be whatever other resource supported
 by the Kubernetes API. Or list of resources separated by "---".
 
 Create deployment from the YAML file:
 
 ```
-{ok, [Resource|_]} = ekub_yaml:read_file("deployment.yaml").
-{ok, Object} = ekub:create(Resource, {Api, Access}).
+{ok, [Deployment|_]} = ekub_yaml:read_file("deployment.yaml").
+{ok, Object1} = ekub:create(Deployment, {Api, Access}).
 ```
 
 Get all the pod names in the current namespace:
 
 ```
-{ok, PodList} = ekub:read(pod, {Api, Access}).
+{ok, PodList1} = ekub:read(pod, {Api, Access}).
 PodNames = [Name || #{<<"metadata">> := #{<<"name">> := Name}}
-                 <- maps:get(<<"items">>, PodList)].
+                 <- maps:get(<<"items">>, PodList1)].
+```
+
+Get our example pod name:
+
+```
+Query = [{label_selector, "app=ekub-example"}],
+{ok, PodList2} = ekub:read(pod, Query, {Api, Access}).
+PodName = hd([Name || #{<<"metadata">> := #{<<"name">> := Name}}
+                   <- maps:get(<<"items">>, PodList2)]).
+```
+
+Execute a command within the pod:
+
+```
+ekub:exec(PodName, "ls -l", {Api, Access}).
+```
+
+Get the pod logs:
+
+```
+ekub:logs(PodName, {Api, Access}).
 ```
 
 Watch all the pods in the current namespace for changes:
@@ -96,10 +121,47 @@ continue_watch(Ref, {Api, Access}) ->
     end.
 ```
 
-Patch a resource (the deployment in this example). The patch YAML file:
+Update the deployment by replacing its body. The new body (note the container
+name change):
 
 ```
-$ cat patch.yaml
+# deployment_to.yaml:
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: ekub-example
+spec:
+  selector:
+    matchLabels:
+      app: ekub-example
+  template:
+    metadata:
+      labels:
+        app: ekub-example
+    spec:
+      containers:
+      - image: alpine
+        name: ekub-example-sleep
+        command:
+        - sh
+        - -c
+        - |
+          echo "Sleeping..."
+          sleep 1000000
+      terminationGracePeriodSeconds: 0
+```
+
+Replace:
+
+```
+{ok, [DeploymentTo|_]} = ekub_yaml:read_file("deployment_to.yaml").
+{ok, Object2} = ekub:replace(DeploymentTo, {Api, Access}).
+```
+
+Update the deployment with a patch. The patch YAML file:
+
+```
+# patch.yaml:
 spec:
   template:
     metadata:
@@ -107,38 +169,26 @@ spec:
         purpose: test
 ```
 
-Read the patch and patch the deployment:
+Patch:
 
 ```
 {ok, [Patch|_]} = ekub_yaml:read_file("patch.yaml").
-ekub:patch(deployment, "", "a", Patch, {Api, Access}).
+ekub:patch(deployment, "", "ekub-example", Patch, {Api, Access}).
 ```
 
 The second parameter is namespace name. When namespace is empty the current one
 is used (is read from the "Access" variable if possible).
 
-Execute a command within a pod:
-
-```
-ekub:exec(hd(PodNames), "ls -l", {Api, Access}).
-```
-
-Get a pod logs:
-
-```
-ekub:logs(hd(PodNames), {Api, Access}).
-```
-
 Delete the deployment:
 
 ```
-ekub:delete(deployment, "", "a", [{propagation_policy, 'Foreground'}], {Api, Access}).
+ekub:delete(deployment, "", "ekub-example", [{propagation_policy, 'Foreground'}], {Api, Access}).
 ```
 
 Or:
 
 ```
-ekub:delete(Resource, [{propagation_policy, 'Foreground'}], {Api, Access}).
+ekub:delete(Deployment, [{propagation_policy, 'Foreground'}], {Api, Access}).
 ```
 
 ## License
@@ -160,6 +210,7 @@ limitations under the License.
 <!-- Links -->
 
 [Erlang]: http://www.erlang.org
+[Deployment]: https://kubernetes.io/docs/concepts/workloads/controllers/deployment
 [Kubernetes]: https://kubernetes.io
 [Kubernetes API]: https://kubernetes.io/docs/reference
 
