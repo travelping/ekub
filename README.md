@@ -9,7 +9,7 @@ An [Erlang] client library to work with [Kubernetes] via [Kubernetes API].
 ## Usage
 
 The "make shell" command will get into an Erlang console with everything needed
-(except Erlang itself) downloaded, built and loaded.
+(Erlang should be installed before) downloaded, built and loaded.
 
 Read access from the current kubeconfig or service account folder (in case of
 running from a pod):
@@ -30,7 +30,7 @@ In one go:
 {ok, {Api, Access}} = ekub:init().
 ```
 
-Deployment YAML file:
+Resource YAML file:
 
 ```
 $ cat deployment.yaml
@@ -49,14 +49,18 @@ spec:
     spec:
       containers:
       - image: alpine
-        name: a
+        name: a-sleep
         command:
         - sh
         - -c
         - |
           echo "Sleeping..."
           sleep 1000000
+      terminationGracePeriodSeconds: 0
 ```
+
+This example describes deployment, but can be whatever other resource supported
+by the Kubernetes API. Or list of resources separated by "---".
 
 Create deployment from the YAML file:
 
@@ -73,7 +77,7 @@ PodNames = [Name || #{<<"metadata">> := #{<<"name">> := Name}}
                  <- maps:get(<<"items">>, PodList)].
 ```
 
-Watch pods for the changes:
+Watch all the pods in the current namespace for changes:
 
 ```
 start_watch({Api, Access}) ->
@@ -92,7 +96,7 @@ continue_watch(Ref, {Api, Access}) ->
     end.
 ```
 
-Patch a resource:
+Patch a resource (the deployment in this example). The patch YAML file:
 
 ```
 $ cat patch.yaml
@@ -103,12 +107,15 @@ spec:
         purpose: test
 ```
 
-```
-{ok, Patch} = ekub_yaml:read_file("patch.yaml").
+Read the patch and patch the deployment:
 
-% if namespace is empty the current one is used
-ekub:patch(deploy, "", "a", Patch, {Api, Access}).
 ```
+{ok, [Patch|_]} = ekub_yaml:read_file("patch.yaml").
+ekub:patch(deployment, "", "a", Patch, {Api, Access}).
+```
+
+The second parameter is namespace name. When namespace is empty the current one
+is used (is read from the "Access" variable if possible).
 
 Execute a command within a pod:
 
@@ -122,14 +129,13 @@ Get a pod logs:
 ekub:logs(hd(PodNames), {Api, Access}).
 ```
 
-Delete deployment:
+Delete the deployment:
 
 ```
-% if namespace is empty the current one is used
-ekub:delete(deploy, "", "a", [{propagation_policy, 'Foreground'}], {Api, Access}).
+ekub:delete(deployment, "", "a", [{propagation_policy, 'Foreground'}], {Api, Access}).
 ```
 
-or:
+Or:
 
 ```
 ekub:delete(Resource, [{propagation_policy, 'Foreground'}], {Api, Access}).
