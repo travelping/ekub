@@ -62,7 +62,7 @@ endpoint(GroupName, GroupVersion, ResourceType, Namespace, Name, SubResource) ->
 namespace(ResourceAlias, Namespace, {Api, Access}) ->
     IsNamespaced = is_namespaced(ResourceAlias, Api),
     if IsNamespaced ->
-        IsNamespaceEmpty = string:is_empty(Namespace),
+        IsNamespaceEmpty = string_is_empty(Namespace),
         if IsNamespaceEmpty -> maps:get(namespace, Access, <<"">>);
         not IsNamespaceEmpty -> Namespace end;
     not IsNamespaced -> "" end.
@@ -168,6 +168,9 @@ resource_type_sub_resource(Name) ->
         [ResourceType, SubResource] -> {ResourceType, SubResource};
         [ResourceType] -> {ResourceType, <<"">>}
     end.
+
+string_is_empty('') -> true;
+string_is_empty(String) -> string:is_empty(String).
 
 to_binary({T1, T2}) -> {to_binary(T1), to_binary(T2)};
 to_binary(A) when is_atom(A) -> atom_to_binary(A, utf8);
