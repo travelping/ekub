@@ -173,16 +173,13 @@ Patch:
 
 ```
 {ok, [Patch|_]} = ekub_yaml:read_file("patch.yaml").
-ekub:patch(deployment, "", "ekub-example", Patch, {Api, Access}).
+ekub:patch(deployment, "ekub-example", Patch, {Api, Access}).
 ```
-
-The second parameter is namespace name. When namespace is empty the current one
-is used (is read from the "Access" variable if possible).
 
 Delete the deployment:
 
 ```
-ekub:delete(deployment, "", "ekub-example", [{propagation_policy, 'Foreground'}], {Api, Access}).
+ekub:delete(deployment, "ekub-example", [{propagation_policy, 'Foreground'}], {Api, Access}).
 ```
 
 Or:
@@ -221,4 +218,4 @@ limitations under the License.
 [GitHub Releases]: https://github.com/travelping/ekub/releases
 [GitHub Release Badge]: https://img.shields.io/github/release/travelping/ekub/all.svg?style=flat-square
 [Erlang Releases]: http://www.erlang.org/news/tag/release
-[Erlang Releases Badge]: https://img.shields.io/badge/Erlang-21.0%20to%2021.2-983936.svg?style=flat-square
+[Erlang Releases Badge]: https://img.shields.io/badge/Erlang-20.0%20to%2021.3-983936.svg?style=flat-square

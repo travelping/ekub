@@ -1,7 +1,8 @@
 -module(ekub_api).
 
 -export([
-    endpoint/2, endpoint/3, endpoint/4, endpoint/5, endpoint/6,
+    endpoint/2, endpoint/3, endpoint/4,
+    endpoint_build/6,
 
     namespace/3,
 
@@ -21,31 +22,40 @@
 -define(ApiCoreEndpoint, <<"/api/v1">>).
 -define(ApisEndpoint, <<"/apis">>).
 
+%-type namespace_name() ::
+%    {namespace(), name()} |
+%    {namespace()} | % equal to {namespace(), ""}
+%    name() | % equal to {"", name()}
+%    {}.
+%
+%-type namespace() :: atom() | string() | binary().
+%-type name() :: atom() | string() | binary().
+
 endpoint(ResourceAlias, {Api, Access}) ->
-    endpoint(false, ResourceAlias, "", "", {Api, Access}).
+    endpoint(false, ResourceAlias, {"", ""}, {Api, Access}).
 
-endpoint(ResourceAlias, Namespace, {Api, Access}) ->
-    endpoint(false, ResourceAlias, Namespace, "", {Api, Access}).
+endpoint(ResourceAlias, NamespaceName, {Api, Access}) ->
+    endpoint(false, ResourceAlias, NamespaceName, {Api, Access}).
 
-endpoint(ResourceAlias, Namespace, Name, {Api, Access}) ->
-    endpoint(false, ResourceAlias, Namespace, Name, {Api, Access}).
-
-endpoint(Group, ResourceAlias, Namespace, Name, {Api, Access}) ->
+endpoint(Group, ResourceAlias, NamespaceName, {Api, Access}) ->
     IsResource = is_resource(ResourceAlias, Api),
     if IsResource ->
         {GroupName, GroupVersion} = if is_tuple(Group) -> Group;
                                     not Group -> group(ResourceAlias, Api) end,
-        endpoint(
+        endpoint_build(
             to_binary(GroupName),
             to_binary(GroupVersion),
             to_binary(resource_type(ResourceAlias, Api)),
-            to_binary(namespace(ResourceAlias, Namespace, {Api, Access})),
-            to_binary(Name),
+            to_binary(namespace(ResourceAlias, NamespaceName, {Api, Access})),
+            to_binary(name(NamespaceName)),
             to_binary(sub_resource(ResourceAlias))
         );
     not IsResource -> "" end.
 
-endpoint(GroupName, GroupVersion, ResourceType, Namespace, Name, SubResource) ->
+endpoint_build(
+    GroupName, GroupVersion, ResourceType,
+    Namespace, Name, SubResource
+) ->
     iolist_to_binary([
         if GroupName == <<"">> -> <<"/api/", GroupVersion/binary>>;
            GroupName /= <<"">> -> <<"/apis/", GroupName/binary,
@@ -59,13 +69,25 @@ endpoint(GroupName, GroupVersion, ResourceType, Namespace, Name, SubResource) ->
            SubResource /= <<"">> -> <<$/, SubResource/binary>> end
     ]).
 
-namespace(ResourceAlias, Namespace, {Api, Access}) ->
-    IsNamespaced = is_namespaced(ResourceAlias, Api),
+namespace(ResourceAlias, NamespaceName, {Api, Access}) ->
+    Namespace = namespace(NamespaceName),
+    IsNamespaced = is_namespaced(ResourceAlias, Api) andalso Namespace /= {},
+
     if IsNamespaced ->
         IsNamespaceEmpty = string_is_empty(Namespace),
         if IsNamespaceEmpty -> maps:get(namespace, Access, <<"">>);
         not IsNamespaceEmpty -> Namespace end;
-    not IsNamespaced -> "" end.
+    not IsNamespaced -> <<"">> end.
+
+namespace({}) -> {};
+namespace({Namespace}) -> Namespace;
+namespace({Namespace, _Name}) -> Namespace;
+namespace(_Name) -> <<"">>.
+
+name({}) -> <<"">>;
+name({_Namespace}) -> <<"">>;
+name({_Namespace, Name}) -> Name;
+name(Name) -> Name.
 
 is_resource(ResourceAlias, Api) ->
     maps:is_key(alias(ResourceAlias), maps:get(aliases, Api, #{})).
