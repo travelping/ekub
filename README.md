@@ -188,6 +188,19 @@ Or:
 ekub:delete(Deployment, [{propagation_policy, 'Foreground'}], {Api, Access}).
 ```
 
+Deploy set of resources from a remote manifest:
+
+```
+{ok, MetalLB} = ekub_yaml:read("https://raw.githubusercontent.com/google/metallb/v0.7.3/manifests/metallb.yaml").
+[ekub:create(Piece, {Api, Access}) || Piece <- MetalLB].
+```
+
+Delete the MetalLB pieces in reverse order:
+
+```
+[ekub:delete(Piece, {Api, Access}) || Piece <- lists:reverse(MetalLB)].
+```
+
 ## License
 
 Copyright 2018-2019 Travelping GmbH
