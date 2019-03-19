@@ -1,9 +1,11 @@
 -module(ekub_yaml).
 
 -export([
+    read/1, read/2,
+
     read_url/1, read_url/2,
     read_file/1, read_file/2,
-    read/1, read/2,
+    read_doc/1, read_doc/2,
 
     build/2,
     decode/1,
@@ -13,26 +15,39 @@
 
 -include_lib("yamerl/include/yamerl_errors.hrl").
 
+read(Target) -> read(Target, []).
+read(Target, Options) ->
+    case is_url(Target) of
+        true -> read_url(Target, Options);
+        false -> case is_file(Target) of
+            true -> read_file(Target, Options);
+            false -> read_doc(Target, Options)
+        end
+    end.
+
+is_url(Target) -> {Result, _Details} = http_uri:parse(Target), Result == ok.
+is_file(Target) -> filelib:is_file(Target).
+
 read_url(Url) -> read_url(Url, []).
 read_url(Url, Options) ->
     case httpc:request(Url) of
-        {ok, {_StatusLine, _Headers, Body}} -> read(Body, Options);
+        {ok, {_StatusLine, _Headers, Body}} -> read_doc(Body, Options);
         {error, Reason} -> {error, Reason}
     end.
 
 read_file(FileName) -> read_file(FileName, []).
 read_file(FileName, Options) ->
     case file:read_file(FileName) of
-        {ok, Yaml} -> read(Yaml, Options);
+        {ok, Yaml} -> read_doc(Yaml, Options);
         {error, Reason} -> {error, Reason}
     end.
 
-read(Yaml) -> read(Yaml, []).
+read_doc(Yaml) -> read_doc(Yaml, []).
 
-read({YamlTemplate, Values}, Options) ->
-    read(build(YamlTemplate, Values), Options);
+read_doc({YamlTemplate, Values}, Options) ->
+    read_doc(build(YamlTemplate, Values), Options);
 
-read(Yaml, Options) ->
+read_doc(Yaml, Options) ->
     case decode(Yaml) of
         {ok, Proplists} -> {ok, to_map(Proplists, Options)};
         {error, Reason} -> {error, Reason}

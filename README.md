@@ -69,7 +69,7 @@ by the Kubernetes API. Or list of resources separated by "---".
 Create deployment from the YAML file:
 
 ```
-{ok, [Deployment|_]} = ekub_yaml:read_file("deployment.yaml").
+{ok, [Deployment|_]} = ekub_yaml:read("deployment.yaml").
 {ok, Object1} = ekub:create(Deployment, {Api, Access}).
 ```
 
@@ -154,7 +154,7 @@ spec:
 Replace:
 
 ```
-{ok, [DeploymentTo|_]} = ekub_yaml:read_file("deployment_to.yaml").
+{ok, [DeploymentTo|_]} = ekub_yaml:read("deployment_to.yaml").
 {ok, Object2} = ekub:replace(DeploymentTo, {Api, Access}).
 ```
 
@@ -172,7 +172,7 @@ spec:
 Patch:
 
 ```
-{ok, [Patch|_]} = ekub_yaml:read_file("patch.yaml").
+{ok, [Patch|_]} = ekub_yaml:read("patch.yaml").
 ekub:patch(deployment, "ekub-example", Patch, {Api, Access}).
 ```
 
