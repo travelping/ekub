@@ -13,9 +13,13 @@
     user/2
 ]).
 
--define(Yaml, ekub_yaml).
+-export_type([
+    kubeconfig/0
+]).
 
 -include_lib("yamerl/include/yamerl_errors.hrl").
+
+-define(Yaml, ekub_yaml).
 
 -type kubeconfig() :: map().
 
