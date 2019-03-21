@@ -21,6 +21,66 @@
     ws_recv_close/1, ws_recv_close/2
 ]).
 
+-export_types([
+    method/0,
+    endpoint/0,
+
+    query/0,
+    headers/0,
+
+    http_options/0,
+    ws_options/0,
+
+    body/0,
+
+    http_response/0,
+    http_stream_ref/0, http_stream_response/0, http_stream_read_result/0,
+
+    ws_connect_result/0, ws_response/0,
+    socket/0
+]).
+
+-define(Access, ekub_access).
+
+-type access() :: ?Access:access().
+
+-type method() :: get | put | post | patch | delete.
+
+-type endpoint() :: string().
+-type url() :: string().
+
+-type query() :: [{atom(), string()}].
+-type headers() :: [{string(), string()}].
+
+-type http_options() :: list().
+-type ws_options() :: list().
+
+-type body() :: map() | binary().
+
+-type http_response() :: {ok, body()} |
+                         {error, Reason :: term()}.
+
+-type http_stream_ref() :: hackney:client_ref().
+
+-type http_stream_response() :: {ok, http_stream_ref()} |
+                                {error, Reason :: body()} |
+                                {error, Reason :: term()}.
+
+-type http_stream_read_result() :: {ok, done} |
+                                   {ok, body()} |
+                                   {error, timeout} |
+                                   {error, req_not_found} |
+                                   {error, Reason :: term()}.
+
+-type ws_connect_result() :: {ok, socket()} |
+                             {error, Reason :: body()}.
+
+-type ws_response() :: {ok, Data :: binary()} |
+                       {error, Reason :: term()}.
+
+-type socket() :: gen_tcp:socket() |
+                  ssl:socket().
+
 -define(HeaderContentTypeJsonText, {"Content-Type", "application/json"}).
 -define(HeaderContentTypeJson, {<<"Content-Type">>, <<"application/json">>}).
 -define(HeaderContentTypeJsonPatch,
@@ -37,21 +97,33 @@
     client_key
 ]).
 
+-spec http_request(endpoint(), access()) -> http_response().
 http_request(Endpoint, Access) ->
     http_request(Endpoint, [], Access).
 
+-spec http_request(endpoint(), query(), access()) -> http_response().
 http_request(Endpoint, Query, Access) ->
     http_request(get, Endpoint, Query, [], <<>>, [], Access).
 
+-spec http_request(method(), endpoint(), query(), access()) -> http_response().
 http_request(Method, Endpoint, Query, Access) ->
     http_request(Method, Endpoint, Query, [], <<>>, [], Access).
+
+-spec http_request(method(), endpoint(), query(),
+                   body(), access()) -> http_response().
 
 http_request(Method, Endpoint, Query, Body, Access) ->
     http_request(Method, Endpoint, Query, [], Body, [], Access).
 
+-spec http_request(method(), endpoint(), query(), headers(),
+                   body(), http_options(), access()) -> http_response().
+
 http_request(Method, Endpoint, Query, Headers, Body, Options, Access) ->
     Url = url(Endpoint, Query, Access),
     http_request(Method, Url, Headers, Body, Options, Access).
+
+-spec http_request(method(), url(), headers(),
+                   body(), http_options(), access()) -> http_response().
 
 http_request(Method, Url, Headers, Body, Options, Access) ->
     case http_request_ref(Method, Url, Headers, Body, Options, Access) of
@@ -61,15 +133,31 @@ http_request(Method, Url, Headers, Body, Options, Access) ->
             {error, Reason}
     end.
 
+-spec http_stream_request(endpoint(), access()) -> http_stream_response().
 http_stream_request(Endpoint, Access) ->
     http_stream_request(Endpoint, [], Access).
+
+-spec http_stream_request(endpoint(), query(), access()) ->
+    http_stream_response().
 
 http_stream_request(Endpoint, Query, Access) ->
     http_stream_request(get, Endpoint, Query, [], <<>>, [], Access).
 
+-spec http_stream_request(
+    method(), endpoint(), query(), headers(),
+    body(), http_options(), access()
+) ->
+    http_stream_response().
+
 http_stream_request(Method, Endpoint, Query, Headers, Body, Options, Access) ->
     Url = url(Endpoint, Query, Access),
     http_stream_request(Method, Url, Headers, Body, Options, Access).
+
+-spec http_stream_request(
+    method(), url(), headers(),
+    body(), http_options(), access()
+) ->
+    http_stream_response().
 
 http_stream_request(Method, Url, Headers, Body, Options, Access) ->
     case http_request_ref(Method, Url, Headers, Body, Options, Access) of
@@ -77,6 +165,7 @@ http_stream_request(Method, Url, Headers, Body, Options, Access) ->
         {error, Reason} -> {error, Reason}
     end.
 
+-spec http_close(http_stream_ref()) -> ok.
 http_close(Ref) ->
     hackney:close(Ref).
 
@@ -95,6 +184,9 @@ http_request_ref(Method, Url, Headers, Body, Options, Access) ->
         {error, Reason} -> {error, Reason}
     end.
 
+-spec http_body_read(headers(), http_stream_ref()) -> http_response();
+                    (headers(), body()) -> body().
+
 http_body_read(Headers, Ref) when is_reference(Ref) ->
     case hackney:body(Ref) of
         {ok, Body} -> {ok, http_body_read(Headers, Body)};
@@ -110,6 +202,7 @@ http_body_read(Headers, Body) ->
     if IsJson -> jsx:decode(Body, ?JsonDecodeOptions);
     not IsJson -> Body end.
 
+-spec http_stream_read(http_stream_ref()) -> http_stream_read_result().
 http_stream_read(Ref) ->
     http_stream_read(Ref, false).
 
@@ -141,15 +234,21 @@ http_stream_to_json(Ref, Data, DecodeFun) ->
             http_stream_read(Ref, NewDecodeFun)
     end.
 
+-spec ws_request(endpoint(), access()) -> ws_response().
 ws_request(Endpoint, Access) ->
     ws_request(Endpoint, [], [], [], Access).
 
+-spec ws_request(endpoint(), query(), access()) -> ws_response().
 ws_request(Endpoint, Query, Access) ->
     ws_request(Endpoint, Query, [], [], Access).
+
+-spec ws_request(endpoint(), query(), headers(), ws_options(), access()) ->
+    ws_response().
 
 ws_request(Endpoint, Query, Headers, Options, Access) ->
     ws_request(url(Endpoint, Query, Access), Headers, Options, Access).
 
+-spec ws_request(url(), headers(), ws_options(), access()) -> ws_response().
 ws_request(Url, Headers, Options, Access) ->
     {RecvTimeout, FinalOptions} = options_take(recv_timeout, Options, infinity),
     case ws_connect(Url, Headers, FinalOptions, Access) of
@@ -157,21 +256,29 @@ ws_request(Url, Headers, Options, Access) ->
         {error, Reason} -> {error, Reason}
     end.
 
+-spec ws_connect(endpoint(), access()) -> ws_connect_result().
 ws_connect(Endpoint, Access) ->
     ws_connect(Endpoint, [], [], [], Access).
 
+-spec ws_connect(endpoint(), query(), access()) -> ws_connect_result().
 ws_connect(Endpoint, Query, Access) ->
     ws_connect(Endpoint, Query, [], [], Access).
 
+-spec ws_connect(endpoint(), query(), headers(), ws_options(), access()) ->
+    ws_connect_result().
+
 ws_connect(Endpoint, Query, Headers, Options, Access) ->
     ws_connect(url(Endpoint, Query, Access), Headers, Options, Access).
+
+-spec ws_connect(url(), headers(), ws_options(), access()) ->
+    ws_connect_result().
 
 ws_connect(Url, Headers, Options, Access) ->
     case ewsc:connect(binary_to_list(Url),
                       headers(Headers, Access),
                       ws_options(Options, Access))
     of
-        {ok, Result} -> {ok, Result};
+        {ok, Socket} -> {ok, Socket};
         {error, Reason} -> {error, ws_error_read(Reason)}
     end.
 
@@ -179,9 +286,13 @@ ws_error_read({http_message, response, _Status, ResponseHeaders, Body}) ->
     http_body_read(ResponseHeaders, Body);
 ws_error_read(Reason) -> Reason.
 
+-spec ws_close(socket()) -> ok.
 ws_close(Socket) -> ewsc:close(Socket).
 
+-spec ws_recv(socket()) -> ws_response().
 ws_recv(Socket) -> ws_recv(Socket, infinity).
+
+-spec ws_recv(socket(), timeout()) -> ws_response().
 ws_recv(Socket, Timeout) -> ws_recv(Socket, Timeout, <<"">>).
 
 ws_recv(Socket, Timeout, Acc) ->
@@ -194,7 +305,10 @@ ws_recv(Socket, Timeout, Acc) ->
             {error, Reason}
     end.
 
+-spec ws_recv_close(socket()) -> ws_response().
 ws_recv_close(Socket) -> ws_recv_close(Socket, infinity).
+
+-spec ws_recv_close(socket(), timeout()) -> ws_response().
 ws_recv_close(Socket, Timeout) ->
     Result = ws_recv(Socket, Timeout),
     ws_close(Socket),
