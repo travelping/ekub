@@ -1,8 +1,11 @@
 -module(ekub_access).
 
 -export([
-    default_options/0,
     read/0, read/1
+]).
+
+-export_type([
+    access/0
 ]).
 
 -type option() ::
@@ -22,8 +25,7 @@
     {password, Password :: string()} |
     {server, Server :: string()}.
 
--type access() ::
-    #{access_key() => access_value()}.
+-type access() :: #{access_key() => access_value()}.
 
 -type access_key() ::
     ca_cert |
